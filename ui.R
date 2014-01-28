@@ -7,18 +7,34 @@ shinyUI(pageWithSidebar(
     HTML('<style type="text/css">
      .row-fluid .span4{width: 20%;}
      </style>'),
-    textInput('directory1', 
-              'Enter portfolio path', 
-              "E:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model"),
-    
-    textInput('directory2', 
-              'Enter portfolio path', 
-              "E:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model"),
-    
+    textInput(
+      'directory1', 
+      'Enter portfolio path', 
+      value = if (grepl("apple",R.version[1],fixed=TRUE)) {
+        "/Users/keiran/Dropbox/workspace/APTIC PnL Tool/CRNCY_Trade File_Model"
+      } else {
+        "E:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model"
+      }
+    ),
+    textInput(
+      'directory2', 
+      'Enter portfolio path', 
+      value = if (grepl("apple",R.version[1],fixed=TRUE)) {
+        "/Users/keiran/Dropbox/workspace/APTIC PnL Tool/CMDTY_Trade File_Model"
+      } else {
+        "E:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model"
+      }
+    ),    
     tags$hr(),
-    textInput('reval.dir',
-              'Enter path to reval rates',
-              'E:/Cloud Data/Data History/Revaluation rates'),
+    textInput(
+      'reval.dir',
+      'Enter path to reval rates',
+      value = if (grepl("apple",R.version[1],fixed=TRUE)) {
+        "/Users/keiran/Dropbox/workspace/APTIC PnL Tool/Revaluation rates"
+      } else {
+        "E:/Cloud Data/Data History/Revaluation rates"
+      }
+    ),
     
     tags$hr(),
     dateRangeInput("daterange","Date range:",start="2010-01-01",end="2013-12-31"),

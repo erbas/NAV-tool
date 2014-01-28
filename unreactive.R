@@ -7,6 +7,7 @@ library(lubridate)
 
 # read saved reval data
 read.saved.reval <- function() {
+  print("---> inside read.saved.reval")
   f.csv <- read.csv(file='reval-rates.csv',header=TRUE,stringsAsFactors=FALSE)
   dt <- ymd_hms(f.csv[,1], tz="Europe/London")
   f.xts <- xts(f.csv[,-1],dt)
@@ -15,11 +16,14 @@ read.saved.reval <- function() {
 
 # read saved trade data
 read.saved.trades <- function() {
+  print("---> inside read.saved.trades")
   df <- read.csv(file="all-trades.csv",header=TRUE,stringsAsFactors=FALSE,
                  colClasses=c("NULL","character","character","numeric","numeric","numeric",
                               "character","character","character","character","integer","factor",
-                              "character","factor","factor")
-  )
+                              "factor","factor","factor"))
+  colnames(df) <- gsub("."," ",colnames(df),fixed=TRUE)
+  df$"Entry time" <- ymd_hms(df$"Entry time",tz="Europe/London")
+  df$"Exit time" <- ymd_hms(df$"Exit time",tz="Europe/London")
   return(df)
 }
 
@@ -57,6 +61,7 @@ load.reval.files <- function(path,daterange) {
 # create the main dataframe of raw trades
 # --------------------------------------------------------------------
 load.all.trades <- function(files.list) {
+  print("---> load.all.trades")
   # read files
   files.summary <- NULL
   files.contents <- NULL
@@ -101,6 +106,8 @@ load.all.trades <- function(files.list) {
     df$Exit.time <- dt.exit
     files.contents <- rbind(files.contents,df)
   }
+  # relabale columns
+  names(files.contents) <- c('Ccy pair','Direction','Amount minor','Entry price','Exit price','Entry time','Exit time','Entry name','Exit name','Bars','Timeframe','RATS','Exit type','Ratio')
   # save debug/summary
   write.csv(files.contents,file="all-trades.csv")
   return(files.contents)
@@ -111,18 +118,17 @@ load.all.trades <- function(files.list) {
 #  convert quantity to USD, return extended trade data.frame
 # --------------------------------------------------------------------
 make.trades.USD <- function(df, reval) {
-  Quantity.USD <- rep(0,nrow(df))
-  # loop over trades converting returns to USD
+  print("---> inside make.trades.USD")
+  print(str(df))
+  Amount.USD <- rep(0,nrow(df))
+  # loop over trades converting trade amounts to USD
   for (i in 1:nrow(df)) {
-    ccy1 <- substr(df[i,"Instrument"],1,3)
-    ccy2 <- substr(df[i,"Instrument"],4,6)
-    conv.pair <- ""
+    ccy1 <- substr(df[i,"Ccy pair"],1,3)
+    ccy2 <- substr(df[i,"Ccy pair"],4,6)
     if (ccy1 == "USD") {
-      to.USD <- 1/df[i,"Exit.price"]
-      conv.pair <- paste0(ccy2,ccy1)
-    } else if (ccy2 == "USD") {
       to.USD <- 1
-      conv.pair <- paste0(ccy1,ccy2)
+    } else if (ccy2 == "USD") {
+      to.USD <- df[i,"Exit price"]
     } else {
       ccypair1 <- paste0(ccy2,"USD")
       ccypair2 <- paste0("USD",ccy2)
@@ -134,35 +140,123 @@ make.trades.USD <- function(df, reval) {
       }
       if (ccypair1 %in% colnames(reval)) {
         to.USD <- reval[dt,ccypair1]
-        conv.pair <- ccypair1
       } else if (ccypair2 %in% colnames(reval)) {
         to.USD <- 1/reval[dt,ccypair2]
-        conv.pair <- ccypair2
       } else {
         stop(paste("Currency pair",ccy1,ccy2,"not found in reval file",sep=" "))
       } 
     }
-    Quantity.USD[i] <- coredata(to.USD) * df[i,"Quantity"]
+    Amount.USD[i] <- coredata(to.USD) * df[i,"Amount minor"]
   }
   # make numerical field for trade direction
   long.short <- rep(0,nrow(df))
-  long.short[which(df$Market.pos == "Long")] <- 1
-  long.short[which(df$Market.pos == "Short")] <- -1
-  df.usd <- cbind(df,Quantity.USD,long.short)
+  long.short[which(df$Direction == "Long")] <- 1
+  long.short[which(df$Direction == "Short")] <- -1
+  extras <- cbind(Amount.USD,long.short)
+  colnames(extras) <- c("Amount USD","Sign")
+  df.usd <- cbind(df,extras)
   return(df.usd)  
+}
+
+split.trades.at.month.ends <- function(df, reval) {
+  # find trades which close in a different month to the one they start, or year
+  idx.split <- which(month(df$"Entry time") != month(df$"Exit time") | 
+                     year(df$"Entry time") != year(df$"Exit time"))
+  trades.split <- df[idx.split,]
+  # find the end of month revals (ie last trading day of each month)
+  month.ends <- seq(from=first(index(reval)), 
+                    to=last(index(reval)) %m+% months(2), 
+                    by="1 month") - days(1)
+  idx <- lapply(month.ends, function(x) which(index(reval) <= x))
+  eom.reval <- Reduce(rbind, lapply(idx, function(x) reval[last(x),]))  # witchcraft
+  eom.reval.index <- index(eom.reval)
+  # create "synthetic" trades to nominally close open positions at month ends
+  synth <- NULL
+  for (i in 1:nrow(trades.split)) {
+    ccy.pair <- trades.split[i,"Ccy pair"]
+    # how many extra trades do we need to create?  find list of month ends
+    idx.split <- which(eom.reval.index > trades.split[i,"Entry time"] & eom.reval.index < trades.split[i,"Exit time"])
+    if (length(idx.split) == 0) {
+      next   # nothing to see here, move along
+    }
+    eom.reval.split <- eom.reval.index[idx.split]
+    n.split <- length(idx.split)
+    # make the last synthetic trade, ie entry is at eom preceding trade exit
+    eom.dt <- last(eom.reval.split)
+    new.open <- trades.split[i,]
+    new.open$"Entry time" <- eom.dt + minutes(1)
+    new.open$"Entry price" <- coredata(reval[eom.dt, ccy.pair]) 
+    new.open$"Entry name" <- "CarryOver"
+    # make the first synthetic trade, ie exit is at first eom after entry 
+    eom.dt <- first(eom.reval.split)
+    new.close <- trades.split[i,]
+    new.close$"Exit time" <- eom.dt
+    new.close$"Exit price" <- coredata(reval[eom.dt, ccy.pair])
+    new.close$"Exit name" <- "CarryOver"
+    # append new trades
+    synth <- rbind(synth,new.close,new.open)
+    # handle completely synthetic trades
+    if (n.split > 1) {
+      for (j in 2:n.split) {
+        new.trade <- trades.split[i,]
+        dt.entry <- eom.reval.split[j-1]
+        dt.exit <- eom.reval.split[j]
+        new.trade$"Entry time" <- dt.entry + minutes(1)
+        new.trade$"Exit time" <- dt.exit
+        new.trade[1,"Entry price"] <- coredata(reval[dt.entry, ccy.pair])
+        new.trade[1,"Exit price"] <- coredata(reval[dt.exit, ccy.pair])
+        new.trade$"Entry name" <- "CarryOver"
+        new.trade$"Exit name" <- "CarryOver"
+        synth <- rbind(synth,new.trade)
+      }
+    }
+  }
+  all.trades <- rbind(df,synth)
+  return(all.trades)
 }
 
 # --------------------------------------------------------------------
 # pnl calculation
 # --------------------------------------------------------------------
-calc.returns <- function(trades.USD, daterange) {
-  df <- trades.USD
-  dt <- trades.USD$Exit.time
-  if (!is.POSIXt(dt)) {
-    dt <- ymd_hms(dt,tz="Europe/London")
+
+calc.pnl <- function(trades.extended, reval) {
+  df <- trades.extended
+  pnl.raw <- (df$"Exit price" - df$"Entry price") * df$"Amount minor" * df$Sign
+  df <- cbind(df,pnl.raw)
+  last(colnames(df)) <- "PnL minor"
+  pnl.USD <- rep(0,nrow(df))
+  # loop over trades converting PnL amounts to USD
+  for (i in 1:nrow(df)) {
+    ccy1 <- substr(df[i,"Ccy pair"],1,3)
+    ccy2 <- substr(df[i,"Ccy pair"],4,6)
+    if (ccy1 == "USD") {
+      to.USD <- df[i,"Exit price"]
+    } else if (ccy2 == "USD") {
+      to.USD <- 1
+    } else {   # cross-rate
+      ccypair1 <- paste0(ccy2,"USD")
+      ccypair2 <- paste0("USD",ccy2)
+      dt <- df[i,"Exit time"]
+      if (ccypair1 %in% colnames(reval)) {
+        to.USD <- reval[dt,ccypair1]
+      } else if (ccypair2 %in% colnames(reval)) {
+        to.USD <- 1/reval[dt,ccypair2]
+      } else {
+        stop(paste("Currency pair",ccy1,ccy2,"not found in reval file",sep=" "))
+      } 
+    }
+    pnl.USD[i] <- coredata(to.USD) * df[i,"PnL minor"]
   }
-  rtns <- (df$Exit.price - df$Entry.price) * df$Quantity.USD * df$long.short
-  rtns.xts <- xts(rtns,dt)
+  df <- cbind(df,pnl.USD)
+  last(colnames(df)) <- "PnL USD"
+  return(df)
+}
+
+
+calc.returns <- function(extended.trades.USD, daterange) {
+  df <- extended.trades.USD
+  dt <- trades.USD$"Exit time"
+  rtns.xts <- xts(df$"PnL USD",dt)
   colnames(rtns.xts) <- "APTIC"
   # filter returns outside the range
   idx <- which(as.Date(dt) < as.Date(daterange)[1] | as.Date(dt) > as.Date(daterange)[2])
@@ -198,20 +292,18 @@ calc.net.rtns <- function(rtns.monthly, mgt.fee=0.02, perf.fee=0.20) {
 #  Open position Calculation
 # --------------------------------------------------------------------
 
-calc.open.pos <- function(trades.USD) {
+calc.open.pos <- function(extended.trades.USD) {
   # find trades which straddle month ends
-  idx.split <- which(mday(trades.USD$Entry.time) != mday(trades.USD$Exit.time))
-  trades.split <- trades.USD[idx.split,]
-  # make separate xts objects for entries and exits
-  amounts <- trades.split$Quantity.USD * trades.split$long.short
-  entries.split <- as.Date(as.character(trades.split$Entry.time))
-  exits.split <- as.Date(trades.split$Exit.time)
-  opens <- xts(amounts, entries.split)
-  closes <- xts(amounts, exits.split)
-  # accumulate over months
-  open.close <- merge(opens,closes,fill=0)
-  open.pos.monthly <- apply.monthly(open.close$opens - open.close$closes,sum)
-  return(open.pos.monthly)
+  idx.open <- which(extended.trades.usd$"Exit name" == "CarryOver")
+  open.pos <- extended.trades.usd[idx.open,c("Ccy pair","Amount minor","Amount USD", "Exit time")]
+  # turn exit times into yearmon class
+  open.pos.m <- open.pos
+  open.pos.m$"Exit time" <- as.yearmon(open.pos$"Exit time")  
+  # sum by ccy pair and month and split into a list by ccy pair
+  d1 <- aggregate(open.pos.m[,c("Amount minor","Amount USD")],list(Date = open.pos.m$"Exit time", CcyPair =  open.pos.m$"Ccy pair"), sum)
+  d2 <- split(d1, d1$CcyPair)
+  total <- aggregate(open.pos.m[,c("Amount-minor","Amount-USD")],list(Date = open.pos.m$Date), sum)
+  return(list("byCcy"=d2,"total"=total))
 }
 
 

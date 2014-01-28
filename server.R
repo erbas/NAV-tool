@@ -225,7 +225,7 @@ shinyServer(function(input, output) {
 
   # NAV
   plotNAV <- reactive({
-    rtns <- get.net.returns()/1.e6
+    rtns <- actual.aum() + get.net.returns()/1.e6
     chart.TimeSeries(cumsum(rtns),date.format="%b-%Y",main="NAV - net of fees (million USD)",xlab="",ylab="")
   })
   
