@@ -1,3 +1,5 @@
+options(warn=0,error=recover)
+Sys.setenv(TZ="Europe/London")
 library(shiny)
 library(quantmod)
 library(lubridate)
@@ -33,10 +35,9 @@ shinyServer(function(input, output) {
     paste(f.list,collapse="<br><br>")
   })
   
-#   # show the concatenated file contents
-  output$TradeSummary <- renderTable({
-    df <- get.trades.usd()
-    head(df,5)
+  # show the concatenated file contents
+  output$TradesExtended <- renderDataTable({
+    get.trades.extended.cached()
   })
 
 
@@ -46,7 +47,7 @@ shinyServer(function(input, output) {
       paste('All Trades ', Sys.Date(), '.csv', sep='')
     },
     content = function(file) {
-      write.csv(get.trades.usd(), file)
+      write.csv(get.trades.extended.cached(), file)
     }
   )
   
@@ -65,7 +66,7 @@ shinyServer(function(input, output) {
   # save pnl chart
   output$downloadPnLchart <- downloadHandler(
     filename = function() {
-      paste('PnL ', Sys.Date(), '.png', sep='')
+      paste('PnL ', input$ccyPair,' ', Sys.Date(), '.png', sep='')
     },
     content = function(file) {
       png(file)
@@ -82,17 +83,18 @@ shinyServer(function(input, output) {
   # download function to save the NAV data
   output$downloadNAVdata <- downloadHandler(
     filename = function() {
-      paste('NAV ', Sys.Date(), '.csv', sep='')
+      paste('NAV ', input$ccyPair,' ', Sys.Date(), '.csv', sep='')
     },
     content = function(file) {
       rtns <- get.net.returns()
-      write.zoo(rtns, file)
+      nav <- actual.aum() + cumsum(rtns)
+      write.zoo(nav, file)
     }
   )
   # save NAV chart
   output$downloadNAVchart <- downloadHandler(
     filename = function() {
-      paste('NAV ', Sys.Date(), '.png', sep='')
+      paste('NAV ', input$ccyPair,' ', Sys.Date(), '.png', sep='')
     },
     content = function(file) {
       png(file)
@@ -108,13 +110,21 @@ shinyServer(function(input, output) {
   })
   # download function to save the OpenPositions data
   output$downloadOpenPosdata <- downloadHandler(
-    filename = function() paste('OpenPos ', Sys.Date(), '.csv', sep=''),
-    content = function(file) write.zoo(calc.open.pos(), file)
+    filename = function() paste('OpenPos ', input$ccyPair,' ', Sys.Date(), '.csv', sep=''),
+    content = function(file) {
+      op <- get.open.positions()
+      x <- input$ccyPair
+      if (x != "all") {
+        op.selected <- op[[x]]
+        op.display <- op.selected[,3:4]
+        write.zoo(op.display, file)
+      }
+    }
   )
   # save open pos chart
   output$downloadOpenPoschart <- downloadHandler(
     filename = function() {
-      paste('OpenPos', Sys.Date(), '.png', sep='')
+      paste('OpenPos ',input$ccyPair," ",Sys.Date(), '.png', sep='')
     },
     content = function(file) {
       png(file)
@@ -124,9 +134,47 @@ shinyServer(function(input, output) {
     contentType = "image/png"
   )
   
-  
+  # --------------------------------------
+  # plots for tab panels
+  # --------------------------------------
+  # PnL
+  plotPnL <- reactive({
+    pnl <- get.pnl()
+    main.txt <- paste("Growth of $1 invested in",input$ccyPair,"strategies (net of fees)"," ")
+    chart.TimeSeries(pnl,date.format="%b-%Y",main=main.txt,xlab="",ylab="")
+  })
+
+  # NAV
+  plotNAV <- reactive({
+    nav <- get.nav()
+    main.txt <- paste("NAV of",input$ccyPair,"strategies (net of fees)"," ")
+    y.txt <- "million USD"
+    chart.TimeSeries(nav/1.e6,date.format="%b-%Y",main=main.txt,xlab="",ylab=y.txt)
+  })
+
+  # Open positions
+  plotOpenPos <- reactive({
+    op <- get.open.positions()
+    x <- input$ccyPair
+    if (x != "all") {
+      op.selected <- op[[x]]
+#       print("---> inside plotOpenPos")
+#       print(op.selected)
+      op.display <- op.selected[,3]
+      main.txt <- paste("Month End Open Positions:",x,sep=" ")
+      if (max(abs(op.display)) > 1.e6) {
+        y.txt <- paste("million",get.ccy1(),sep=" ")
+        vs <- 1.e6
+      } else {
+        y.txt <- paste("thousand",get.ccy1(),sep=" ")
+        vs <- 1.e3
+      }
+      chart.TimeSeries(op.display/vs,type="h",date.format="%b-%Y",main=main.txt,ylab=y.txt,xlab="")
+    }
+    })
+
   # ------------------------------------------------------------------
-  #  read in the required data
+  #  read in the required data, possibly cached in local files
   # ------------------------------------------------------------------
   
   # get the reval data
@@ -146,13 +194,6 @@ shinyServer(function(input, output) {
     return(dat)
   })
   
-  # find all trade files 
-  find.all.trade.files <- reactive({
-    c(list.files(path=input$directory1,pattern="*.csv",full.names=TRUE,recursive=TRUE),
-      list.files(path=input$directory2,pattern="*.csv",full.names=TRUE,recursive=TRUE))
-  })
-  
-  
   # get the trade data
   get.all.trades <- reactive({
     if (input$reload) {
@@ -171,73 +212,150 @@ shinyServer(function(input, output) {
     }
     return(dat)
   })
+
+  # find all trade files 
+  find.all.trade.files <- reactive({
+    c(list.files(path=input$directory1,pattern="*.csv",full.names=TRUE,recursive=TRUE),
+      list.files(path=input$directory2,pattern="*.csv",full.names=TRUE,recursive=TRUE))
+  })
+
+  # ------------------------------------------------------------------
+  #  wrapper to cache the extended trade and pnl calculations
+  # ------------------------------------------------------------------
+  get.trades.usd.cached <- reactive({
+    f.name <- "cache/trades_usd.csv"
+    if (file.exists(f.name) && !input$reload) {
+      df <- read.saved.usd()
+    } else {
+      df <- get.trades.usd()
+    }
+    return(df)
+    
+  })
   
+  get.trades.extended.cached <- reactive({
+    f.name <- "cache/trades_extended.csv"
+    if (file.exists(f.name) && !input$reload) {
+      df <- read.saved.extended.pnl()
+    } else {
+      df <- get.trades.extended()
+    }
+    return(df)
+  })
+    
+  get.returns.cached <- reactive({
+    f.name <- "cache/trades_extended_pnl.csv"
+    if (file.exists(f.name) && !input$reload) {
+      trades.pnl <- read.saved.extended.pnl()
+      rtns <- calc.returns(trades.pnl, input$daterange, input$ccyPair)
+    } else {
+      rtns <- get.returns()
+    }
+    return(rtns)
+  })
+
   # ------------------------------------------------------------------
   #  calculations on the trade data
   # ------------------------------------------------------------------
-
+  
+  # get trades, convert amounts into USD
   get.trades.usd <- reactive({
     trade.data <- get.all.trades()
     reval.rates <- get.reval.rates()
     trades.usd <- make.trades.USD(trade.data, reval.rates)
     return(trades.usd)
   })
-
+  
+  # get trades, split end-of-month trades, calculate pnl for each trade
+  get.trades.extended <- reactive({
+    trades.usd <- get.trades.usd.cached()
+    reval.rates <- get.reval.rates()
+    trades.extended <- split.trades.at.month.ends(trades.usd, reval.rates)
+    trades.pnl <- calc.pnl(trades.extended, reval.rates)
+    return(trades.pnl)
+  })
+  
+  # get returns from extended trade dataframe
   get.returns <- reactive({
-    trades <- get.trades.usd()
-    rtns <- calc.returns(trades, input$daterange)
+    trades.pnl <- get.trades.extended.cached()
+    rtns <- calc.returns(trades.pnl, input$daterange, input$ccyPair)
     return(rtns)    
   })
 
+  # make returns monthly and subtract fees
+  # NOTE: this is the entry point from the UI, 
+  #     : ie first reactive function called from pnl and nav tabs
   get.net.returns <- reactive({
-    rtns <- get.returns()
+    rtns <- get.returns.cached()
     rtns.monthly <- apply.monthly(rtns,sum)
     index(rtns.monthly) <- as.yearmon(index(rtns.monthly))
     fees <- actual.fees()
-    rtns.net <- calc.net.rtns(rtns.monthly, mgt.fee=fees$mgt, perf.fee=fees$perf )
+    print(paste("Fees = ",fees,sep=" "))
+    rtns.net <- calc.net.rtns(rtns.monthly, mgt.fee=fees$mgt, perf.fee=fees$perf,aum=actual.aum(),cmpd=input$compound )
     return(rtns.net)    
   })
 
-  actual.aum <- reactive({
-    print(attributes(input$AUM))
-    return(input$AUM*1.e6)
+  # functions to gnerate plottable data
+  get.pnl <- reactive({
+    rtns.percent <- get.net.returns()/actual.aum()
+    if (input$compound) {
+      pnl <- cumprod(1+rtns.percent)
+    } else {
+      pnl <- 1 + cumsum(rtns.percent)
+    }
+    return(pnl)
   })
 
-  actual.fees <- reactive({
-    return(list("mgt"=input$mgtFee/100, "perf"=input$performanceFee/100))
+  get.nav <- reactive({
+    rtns <- get.net.returns()
+    if (input$compound) {
+      nav <- cumprod(1 + rtns/actual.aum())*actual.aum()
+    } else {
+      nav <- actual.aum() + cumsum(rtns)
+    }
+  return(nav)
   })
-  
+
+  # get month end open positions for all ccy pairs
+  # NOTE: this is the entry point from the UI 
   get.open.positions <- reactive({
-    trades <- get.trades.usd()
-    op <- calc.open.pos(trades)
+    trades <- get.trades.extended.cached()
+    op <- calc.open.pos(trades, input$daterange)
     return(op)
   })
   
-  # --------------------------------------
-  # plots for tab panels
-  # --------------------------------------
-  # PnL
-  plotPnL <- reactive({
-    rtns.percent <- get.net.returns()/actual.aum()
-    pnl.m <- 1+cumsum(rtns.percent)
-    chart.TimeSeries(pnl.m,date.format="%b-%Y",main="Growth of $1 (net of fees)",xlab="",ylab="")
+  # ------------------------------------------------------------------
+  # utility functions
+  # ------------------------------------------------------------------
+  # convert AUM from gui input value into units of $1
+  actual.aum <- reactive({
+    return(input$AUM*1.e6)
   })
 
-  # NAV
-  plotNAV <- reactive({
-    rtns <- actual.aum() + get.net.returns()/1.e6
-    chart.TimeSeries(cumsum(rtns),date.format="%b-%Y",main="NAV - net of fees (million USD)",xlab="",ylab="")
+  # convert fees from gui input values into percentages
+  actual.fees <- reactive({
+    return(list("mgt"=input$mgtFee/100, "perf"=input$performanceFee/100))
   })
-  
-  # Open positions
-  plotOpenPos <- reactive({
-    op <- get.open.positions()/1.e6
-    dt <- index(op)
-    idx <- which(as.Date(dt) < input$daterange[1] | as.Date(dt) > input$daterange[2])
-    op <- op[-idx]
-    index(op) <- as.yearmon(index(op))
-    chart.TimeSeries(op,type="h",date.format="%b-%Y",main="Total Month-End Open Positions (million USD)",ylab="",xlab="",lwd=2)
-  })
-  
 
+  # extract major and minor currencies
+  get.ccy2 <- reactive({
+    if (input$ccyPair == "all") {
+      ccy <- "USD"
+    } else {
+      ccy <- substr(input$ccyPair,4,6)
+    }
+    return(ccy)
+  })
+  
+  get.ccy1 <- reactive({
+    if (input$ccyPair == "all") {
+      ccy <- "USD"
+    } else {
+      ccy <- substr(input$ccyPair,1,3)
+    }
+    return(ccy)
+  })
+  
+  
+  
 })
