@@ -1,20 +1,31 @@
-
+# 
 path1 <- "CRNCY_Trade File_Model/"
 path2 <- "CMDTY_Trade File_Model/"
-
+path3 <- "Revaluation rates/"
+# path1 <- "E:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model"
+# path2 <- "E:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model/"
+# path3 <- "E:/Cloud Data/Data History/Revaluation rates/"
 files.to.load <- c(list.files(path1,pattern="*.csv",full.names=TRUE,recursive=TRUE), list.files(path2,pattern="*.csv",full.names=TRUE,recursive=TRUE))
 
 trade.data <- load.all.trades(files.to.load)
-reval <- load.reval.files("Revaluation rates/",c("2010-01-01","2013-12-31"))
+reval <- load.reval.files(path3,c("2010-01-01","2013-12-31"))
 
-trades.usd <- make.trades.USD(trade.data, reval)
-rtns <- calc.returns(trades.usd,as.Date(c("2010-01-01","2013-12-31")))
+trade.data <- read.saved.trades()
+reval <- read.saved.reval()
+trades.usd <- read.saved.usd()
+extended.trades.pnl <- read.saved.extended.pnl()
+
+# trades.usd <- make.trades.USD(trade.data, reval)
+# extended.trades.usd <- split.trades.at.month.ends(trades.usd, reval)
+# extended.trades.pnl <- calc.pnl(extended.trades.usd, reval)
+
+rtns <- calc.returns(extended.trades.pnl,c("2010-01-01","2013-12-31"),ccy.pair="all")
 rtns.sum <- cumsum(rtns)
 rtns.sum.m <- apply.monthly(rtns,sum)
 index(rtns.sum.m) <- as.yearmon(index(rtns.sum.m) )
 pnl.m <- 1+cumsum(rtns.sum.m["2010::2013"])/1.e8
-
 plot.xts(pnl.m,main="Growth of $1")
+
 chart.TimeSeries(pnl.m,date.format="%b-%Y",main="Growth of $1",xlab="",ylab="")
 plot.xts(100+cumsum(rtns.sum.m)/1.e6,main="NAV (m USD)")
 
@@ -25,10 +36,12 @@ barplot(both.rtns/1.e6,beside=TRUE,col=c(3,4),main="Returns and Net Returns",leg
 plot.zoo(cumsum(merge(rtns.sum.m,rtns.net,fill=0))/1.e6,plot.type='single',col=c(3,4))
 chart.TimeSeries(cumsum(both.rtns)/1.e6,ylab="",xlab="",main="Returns and Net Returns (mUSD)",date.format="%b-%Y",colorset=c(3,4),legend.loc="topleft")
 
-op <- calc.open.pos(trades.usd)
-index(op) <- as.yearmon(index(op))
-barplot(op["2010::2013"])
-chart.TimeSeries(cumsum(op)/1.e6,type="h",date.format="%b-%Y",main="Value of all open positions (mUSD)",xlab="",ylab="")
+op <- calc.open.pos(extended.trades.pnl,c("2010-01-01","2013-12-31"))
+
+index(op$Total) <- as.yearmon(index(op$Total))
+barplot(op$Total[,"Amount USD"]/1.e6)
+chart.TimeSeries(cumsum(op$Total)/1.e6,type="h",date.format="%b-%Y",main="Value of all open positions (mUSD)",xlab="",ylab="")
+
 
 s <- read.csv("summary trade files.csv")
 
@@ -36,14 +49,97 @@ f.csv <- read.csv("CRNCY_Trade File_Model//Sub Strategy/CIT/CIT SS2_553 Ratio Se
 dt1 <- dmy_hms(f.csv$Entry.time,tz="Europe/London")
 dt2 <- dmy_hms(f.csv$Exit.time,tz="Europe/London")
 
-tryCatch(dmy_hms(f.csv$Exit.time,tz="Europe/London"),
-         warning = function(w) {
-           print(w)
-           dt <- dmy_hm(f.csv$Entry.time,tz="Europe/London")
-           return(dt)
-         },
-         error = function(e) {
-           print(e)
-           stop()
-         }
-)
+
+
+#### find end of month revals ###
+idx <- lapply(month.ends, function(x) which(index(reval) <= x))
+eom.revals <- Reduce(rbind, lapply(idx, function(x) reval[last(x),]))
+
+# open positions
+idx.open <- which(extended.trades.pnl$"Exit name" == "CarryOver")
+df <- extended.trades.pnl[idx.open,]
+open.pos <- data.frame(df$"Ccy pair", df$"Amount major"*df$Sign, df$"Amount USD"*df$Sign, df$"Exit time")
+colnames(open.pos) <- c("Ccy pair","Amount major","Amount USD","Date")
+open.pos$Date <- as.yearmon(open.pos$Date)  
+d1 <- aggregate(open.pos[,c("Amount major","Amount USD")],
+                list(Date = open.pos$Date, CcyPair =  open.pos$"Ccy pair"),
+                sum)
+d2 <- split(d1, d1$CcyPair)
+d3 <- lapply(d2,function(x) xts(x[,3:4],as.yearmon(x$Date)))
+total <- aggregate(open.pos[,c("Amount major","Amount USD")],
+                   list(Date = open.pos$Date),
+                   sum)
+total.xts <- xts(total[,2:3],as.yearmon(total[,1]))
+barplot(total.xts$"Amount USD"/1.e6)
+
+barplot(d3$XAUUSD[,"Amount major"]/1.e6,axis.lty=1)
+
+# debug pnl in USD
+ccy.pairs <- colnames(reval)
+for (x in ccy.pairs) {
+  print(x)
+  idx <- which(extended.trades.pnl$"Ccy pair" == x)
+  if (length(idx)==0) next
+  pnl <- xts(extended.trades.pnl[idx,"PnL minor"],extended.trades.pnl$"Exit time"[idx])
+  par(ask=TRUE)
+  plot.xts(cumsum(pnl),main=x)
+}
+
+
+# debug open positions in USD
+ccy.pairs <- colnames(reval)
+for (x in ccy.pairs) {
+  print(x)
+  idx <- which(extended.trades.pnl$"Ccy pair" == x)
+  if (length(idx)==0) next
+  pnl <- xts(extended.trades.pnl[idx,"PnL minor"],extended.trades.pnl$"Exit time"[idx])
+  par(ask=TRUE)
+  plot.xts(cumsum(pnl),main=x)
+}
+
+
+
+x<-rnorm(100);
+y <- xts(x, Sys.Date()+1:100);
+barplot(y);
+
+
+
+####################
+### open pos #######
+####################
+trades.extended.pnl <- extended.trades.pnl
+daterange <- c("2010-01-01","2013-12-31")
+# NOTE: we use the split trades dataframe and assume no trade goes over month end
+print("---> inside calc.open.pos")
+print(str(extended.trades.pnl))
+idx.range <- which(as.Date(trades.extended.pnl$"Exit time") < as.Date(daterange)[1] | 
+                     as.Date(trades.extended.pnl$"Exit time") > as.Date(daterange)[2])
+df.range <- trades.extended.pnl[-idx.range,]
+# find trades which are open at month end, and trades which close during the month
+idx.open <- which( grepl("CarryOver",df.range$"Exit name"))
+df <- df.range[idx.open,]
+# split opens from closes
+open.pos <- data.frame(df$"Ccy pair", df$"TradeId", df$"SplitId", df$"Amount major"*df$Sign, df$"Amount USD"*df$Sign, df$"Exit time")
+colnames(open.pos) <- c("CcyPair","Trade ID", "Split ID", "Amount major","Amount USD","Date Open")
+# split by ccypair
+open.list <- split(open.pos,open.pos$CcyPair)
+# turn into xts and sum by month
+open.list.xts <- lapply(open.list, function(x) xts(x[,2:5],x[,6]))
+open.list.xts.m <- lapply(open.list.xts, function(x) apply.monthly(x,colSums))
+# calculate total
+total <- apply.monthly(Reduce(rbind,open.list.xts),colSums)
+
+
+
+barplot(cumsum(total[,2])/1.e6)
+
+barplot(cumsum(open.pos[["USDJPY"]][,1])/1.e6)
+lines(reval[,"AUDUSD"])
+
+
+
+
+
+
+
