@@ -350,27 +350,39 @@ calc.returns <- function(trades.pnl, daterange, ccy.pair) {
 # --------------------------------------------------------------------
 #  expenses Calculation
 # --------------------------------------------------------------------
-calc.net.rtns <- function(rtns.monthly, mgt.fee=0.02, perf.fee=0.20, aum=1.e8, cmpd=FALSE) {
+calc.net.rtns <- function(rtns.monthly, mgt.fee=0.02, perf.fee=0.20, aum=1.e8) {
   print("---> inside calc.net.rtns")
-  # subtract management fee
-  rtns.net <- rtns.monthly - mgt.fee*aum/12
-  # calculate highwatermark without fees
-  if (cmpd) {
-    nav <- cumprod(1+rtns.net/aum)*aum
-  } else {
-    nav <- aum + cumsum(rtns.net)
-  }
-  hw.mark <- xts(rep(0,length(nav)),index(nav))
-  hw.mark[1] <- nav[1]
-  for (i in 2:length(nav)) {
-#     cat(i, nav[i], max(hw.mark), nav[i] > max(hw.mark), "\n")
-    if (nav[i] > max(hw.mark)) {
-      hw.mark[i] <- nav[i]
+  zero.xts <- xts(rep(0,length(rtns.monthly)),index(rtns.monthly))
+  start.eq <- zero.xts
+  pnl <- rtns.monthly
+  names(pnl) <- "pnl"
+  mgt.fee <- zero.xts
+  perf.fee <- zero.xts
+  end.eq <- zero.xts
+  high.water.mark <- zero.xts
+  # initialise calc
+  start.eq[1] <- aum
+  mgt.fee[1] <- mgt.fee/12*start.eq[1]
+  perf.fee[1] <- perf.fee*(pnl[1] - mgt.fee[1])
+  end.eq[1] <- start.eq[1] + pnl[1] - mgt.fee[1] - perf.fee[1] 
+  high.water.mark[1] <- end.eq[1]
+  # loop
+  for (i in 2:length(zero.xts)) {
+    start.eq[i] <- end.eq[i-1]
+    mgt.fee[i] <- mgt.fee/12*start.eq[i]
+    high.water.mark[i] <- max(high.water.mark[1:i])
+    if ( coredata(start.eq[i] + pnl[i] - mgt.fee[i]) > high.water.mark[i]  ) {
+      perf.fee[i] <- perf.fee*( start.eq[i] + pnl[i] - mgt.fee[i] - high.water.mark[i] )
+      end.eq[i] <- start.eq[i] + pnl[i] - mgt.fee[i] - perf.fee[i]
+      high.water.mark[i] <- coredata(end.eq[i])
+    } else {
+      perf.fee[i] <- 0.0
+      end.eq[i] <- start.eq[i] + pnl[i] - mgt.fee[i] - perf.fee[i]
     }
   }
-  # subtract perforamcne fees at period where we have a new highwater mark
-  idx <- which(hw.mark != 0)
-  rtns.net[idx] <- rtns.net[idx] - perf.fee*rtns.net[idx]
+  
+#   res <- merge(start.eq, pnl, mgt.fee, perf.fee, end.eq, high.water.mark)
+  rtns.net <- end.eq - aum
   return(rtns.net)
 }
 

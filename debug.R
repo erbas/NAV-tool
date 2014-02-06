@@ -20,10 +20,78 @@ extended.trades.pnl <- read.saved.extended.pnl()
 # extended.trades.pnl <- calc.pnl(extended.trades.usd, reval)
 
 rtns <- calc.returns(extended.trades.pnl,c("2010-01-01","2013-12-31"),ccy.pair="all")
-rtns.sum <- cumsum(rtns)
-rtns.sum.m <- apply.monthly(rtns,sum)
-index(rtns.sum.m) <- as.yearmon(index(rtns.sum.m) )
-pnl.m <- 1+cumsum(rtns.sum.m["2010::2013"])/1.e8
+rtns.monthly <- apply.monthly(rtns,sum)
+index(rtns.monthly) <- as.yearmon(index(rtns.monthly))
+
+rtns.net <- calc.net.rtns(rtns.monthly,mgt.fee=0.02,perf.fee=0.2,aum=1.e8)
+rtns.net.0 <- calc.net.rtns(rtns.monthly,mgt.fee=0.0,perf.fee=0.0,aum=1.e8)
+rtns.net.mgt.only <- calc.net.rtns(rtns.monthly,mgt.fee=0.02,perf.fee=0.0,aum=1.e8)
+a <- cbind(rtns.net.0, rtns.net.mgt.only, rtns.net, rtns.net.0 - rtns.net.mgt.only)
+colnames(a) <- c("Nav No Fees", "Nav Mgt Fee 2%", "Nav 2&20", "Nav0 - Nav.mgt")
+
+# -----------------------------------------------------------------------------------
+# define performance array
+p <- xts(matrix(0,ncol=6,nrow=length(rtns.monthly)),index(rtns.monthly))
+colnames(p) <- c('Start','PnL', 'Mgt', 'Perf','Net PnL','End')
+# initialise first row
+p[1,'Start'] <- 1.e8
+p[,'PnL'] <- rtns.monthly
+p[1,'Mgt'] <- 0.02/12*p[1,'Start']
+p[1,'Perf'] <- 0.2*(p[1,'PnL'] - p[1,'Mgt'])
+p[1,'Net PnL'] <- p[1,'PnL'] - p[1,'Mgt'] - p[1,'Perf']
+p[1,'End'] <- p[1,'Start'] + p[1,'Net PnL']
+p[2,'Start'] <- p[1,'End']
+# loop over subsequent months
+for (i in 2:nrow(p)) {
+  p[i,'Mgt'] <- 0.02/12*p[i,'Start']
+  p[i,'Perf'] <- 0 
+#   cat(i, p[i,'Nav net Mgt'] , max(p[1:i,'Start']), p[i,'Nav net Mgt'] >= max(p[1:i,'Start']),'\n')
+  if (p[i,'Start'] + p[i,'PnL'] - p[i,'Mgt'] > max(p[1:i,'Start']))
+    p[i,'Perf'] <- 0.2*(p[i,'PnL'] - p[i,'Mgt']) 
+  p[i,'Net PnL'] <- p[i,'PnL'] - p[i,'Mgt'] - p[i,'Perf']
+  p[i,'End'] <- p[i,'Start'] + p[i,'Net PnL'] 
+  if ( i+1 <= nrow(p)) p[i+1,'Start'] <- p[i,'End'] 
+}
+# -----------------------------------------------------------------------------------
+zero.xts <- xts(rep(0,length(rtns.monthly)),index(rtns.monthly))
+start.eq <- zero.xts
+pnl <- rtns.monthly
+names(pnl) <- "pnl"
+mgt.fee <- zero.xts
+perf.fee <- zero.xts
+end.eq <- zero.xts
+high.water.mark <- zero.xts
+# initialise calc
+start.eq[1] <- 1.e8
+mgt.fee[1] <- 0.02/12*start.eq[1]
+perf.fee[1] <- 0.2*(pnl[1] - mgt.fee[1])
+end.eq[1] <- start.eq[1] + pnl[1] - mgt.fee[1] - perf.fee[1] 
+high.water.mark[1] <- end.eq[1]
+# loop
+for (i in 2:length(zero.xts)) {
+  start.eq[i] <- end.eq[i-1]
+  mgt.fee[i] <- 0.02/12*start.eq[i]
+  high.water.mark[i] <- max(high.water.mark[1:i])
+  if ( coredata(start.eq[i] + pnl[i] - mgt.fee[i]) > high.water.mark[i]  ) {
+    perf.fee[i] <- 0.2*( start.eq[i] + pnl[i] - mgt.fee[i] - high.water.mark[i] )
+    end.eq[i] <- start.eq[i] + pnl[i] - mgt.fee[i] - perf.fee[i]
+    high.water.mark[i] <- coredata(end.eq[i])
+  } else {
+    perf.fee[i] <- 0.0
+    end.eq[i] <- start.eq[i] + pnl[i] - mgt.fee[i] - perf.fee[i]
+  }
+}
+
+res <- merge(start.eq, pnl, mgt.fee, perf.fee, end.eq, high.water.mark)
+head(res)
+
+
+
+# -----------------------------------------------------------------------------------
+
+x <- cbind(rtns.monthly, nav.0, nav.mgt.only, nav.0 - nav.mgt.only)/1.e6
+colnames(x) <- c("monthly returns", "Nav No Fees", "Nav Mgt Fee 2%", "Diff in Nav")
+
 plot.xts(pnl.m,main="Growth of $1")
 
 chart.TimeSeries(pnl.m,date.format="%b-%Y",main="Growth of $1",xlab="",ylab="")
