@@ -60,17 +60,17 @@ shinyServer(function(input, output) {
   })
   # save pnl data
   output$downloadPnLdata <- downloadHandler(
-    filename = function() paste('PnL_',paste(input$ccyPairs,collapse="_"), Sys.Date(), '.csv', sep=''),
+    filename = function() paste('PnL ', Sys.Date(), '.csv', sep=''),
     content = function(file) {
-      rtns <- get.net.returns()
+      rtns <- get.net.returns()/actual.aum()
       index(rtns) <- as.Date(index(rtns))
-      write.zoo(rtns, file)
+      write.zoo(rtns, file, sep=",")
     }
   )
   # save pnl chart
   output$downloadPnLchart <- downloadHandler(
     filename = function() {
-      paste('PnL_',paste(input$ccyPairs,collapse="_"),' ', Sys.Date(), '.png', sep='')
+      paste('PnL ',' ', Sys.Date(), '.png', sep='')
     },
     content = function(file) {
       png(file)
@@ -87,19 +87,19 @@ shinyServer(function(input, output) {
   # download function to save the NAV data
   output$downloadNAVdata <- downloadHandler(
     filename = function() {
-      paste('NAV_',paste(input$ccyPairs,collapse="_"),' ', Sys.Date(), '.csv', sep='')
+      paste('NAV ',' ', Sys.Date(), '.csv', sep='')
     },
     content = function(file) {
       rtns <- get.net.returns()
       nav <- actual.aum() + cumsum(rtns)
       index(nav) <- as.Date(index(nav))
-      write.zoo(nav, file)
+      write.zoo(nav, file, sep=",")
     }
   )
   # save NAV chart
   output$downloadNAVchart <- downloadHandler(
     filename = function() {
-      paste('NAV_',paste(input$ccyPairs,collapse="_"),' ', Sys.Date(), '.png', sep='')
+      paste('NAV ',' ', Sys.Date(), '.png', sep='')
     },
     content = function(file) {
       png(file)
@@ -115,22 +115,22 @@ shinyServer(function(input, output) {
   })
   # download function to save the OpenPositions data
   output$downloadOpenPosdata <- downloadHandler(
-    filename = function() paste('OpenPos_', paste(input$ccyPairs,collapse="_"),' ', Sys.Date(), '.csv', sep=''),
+    filename = function() paste('OpenPos', ' ', Sys.Date(), '.csv', sep=''),
     content = function(file) {
       op <- get.open.positions()
       op.display <- NULL
       for (x in input$ccyPairs) {
-        op.selected <- op[[x]]
-        op.display <- rbind(op.display,op.selected[,3:4])
+        op.selected <- data.frame("ccy"=x,"op"=op[[x]])
+        op.display <- rbind(op.display, op.selected)
       }
-      index(op.display) <- as.date(index(op.display))
-      write.zoo(op.display, file)
+      index(op.display) <- as.Date(index(op.display))
+      write.zoo(op.display, file,sep=",")
     }
   )
   # save open pos chart
   output$downloadOpenPoschart <- downloadHandler(
     filename = function() {
-      paste('OpenPos_',paste(input$ccyPairs,collapse="_")," ",Sys.Date(), '.png', sep='')
+      paste('OpenPos '," ",Sys.Date(), '.png', sep='')
     },
     content = function(file) {
       png(file)
@@ -358,25 +358,4 @@ shinyServer(function(input, output) {
     return(list("mgt"=input$mgtFee/100, "perf"=input$performanceFee/100))
   })
 
-#   # extract major and minor currencies
-#   get.ccy2 <- reactive({
-#     if (input$ccyPair == "all") {
-#       ccy <- "USD"
-#     } else {
-#       ccy <- substr(input$ccyPair,4,6)
-#     }
-#     return(ccy)
-#   })
-#   
-#   get.ccy1 <- reactive({
-#     if (input$ccyPair == "all") {
-#       ccy <- "USD"
-#     } else {
-#       ccy <- substr(input$ccyPair,1,3)
-#     }
-#     return(ccy)
-#   })
-#   
-  
-  
 })
