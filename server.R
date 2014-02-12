@@ -1,10 +1,9 @@
-options(warn=0,error=recover)
+options(warn=0,error=dump.frames)
 Sys.setenv(TZ="Europe/London")
 library(shiny)
 library(quantmod)
 library(lubridate)
 library(PerformanceAnalytics)
-# library(dplyr)
 
 source("unreactive.R")
 
@@ -29,6 +28,10 @@ shinyServer(function(input, output) {
     as.Date(input$daterange)
   })
 
+  output$instruments <- renderText({
+    input$ccyPairs
+  })
+  
   # list files found
   output$trade.files <- renderText({
     f.list <- find.all.trade.files()
@@ -57,16 +60,17 @@ shinyServer(function(input, output) {
   })
   # save pnl data
   output$downloadPnLdata <- downloadHandler(
-    filename = function() paste('PnL ', Sys.Date(), '.csv', sep=''),
+    filename = function() paste('PnL_',paste(input$ccyPairs,collapse="_"), Sys.Date(), '.csv', sep=''),
     content = function(file) {
       rtns <- get.net.returns()
+      index(rtns) <- as.Date(index(rtns))
       write.zoo(rtns, file)
     }
   )
   # save pnl chart
   output$downloadPnLchart <- downloadHandler(
     filename = function() {
-      paste('PnL ', input$ccyPair,' ', Sys.Date(), '.png', sep='')
+      paste('PnL_',paste(input$ccyPairs,collapse="_"),' ', Sys.Date(), '.png', sep='')
     },
     content = function(file) {
       png(file)
@@ -83,18 +87,19 @@ shinyServer(function(input, output) {
   # download function to save the NAV data
   output$downloadNAVdata <- downloadHandler(
     filename = function() {
-      paste('NAV ', input$ccyPair,' ', Sys.Date(), '.csv', sep='')
+      paste('NAV_',paste(input$ccyPairs,collapse="_"),' ', Sys.Date(), '.csv', sep='')
     },
     content = function(file) {
       rtns <- get.net.returns()
       nav <- actual.aum() + cumsum(rtns)
+      index(nav) <- as.Date(index(nav))
       write.zoo(nav, file)
     }
   )
   # save NAV chart
   output$downloadNAVchart <- downloadHandler(
     filename = function() {
-      paste('NAV ', input$ccyPair,' ', Sys.Date(), '.png', sep='')
+      paste('NAV_',paste(input$ccyPairs,collapse="_"),' ', Sys.Date(), '.png', sep='')
     },
     content = function(file) {
       png(file)
@@ -110,21 +115,22 @@ shinyServer(function(input, output) {
   })
   # download function to save the OpenPositions data
   output$downloadOpenPosdata <- downloadHandler(
-    filename = function() paste('OpenPos ', input$ccyPair,' ', Sys.Date(), '.csv', sep=''),
+    filename = function() paste('OpenPos_', paste(input$ccyPairs,collapse="_"),' ', Sys.Date(), '.csv', sep=''),
     content = function(file) {
       op <- get.open.positions()
-      x <- input$ccyPair
-      if (x != "all") {
+      op.display <- NULL
+      for (x in input$ccyPairs) {
         op.selected <- op[[x]]
-        op.display <- op.selected[,3:4]
-        write.zoo(op.display, file)
+        op.display <- rbind(op.display,op.selected[,3:4])
       }
+      index(op.display) <- as.date(index(op.display))
+      write.zoo(op.display, file)
     }
   )
   # save open pos chart
   output$downloadOpenPoschart <- downloadHandler(
     filename = function() {
-      paste('OpenPos ',input$ccyPair," ",Sys.Date(), '.png', sep='')
+      paste('OpenPos_',paste(input$ccyPairs,collapse="_")," ",Sys.Date(), '.png', sep='')
     },
     content = function(file) {
       png(file)
@@ -134,12 +140,30 @@ shinyServer(function(input, output) {
     contentType = "image/png"
   )
   
+  # statistics 
+  output$statistics <- renderTable({
+    rtns.percent <- get.net.returns()/actual.aum()
+    calc.stats(rtns.percent)
+  })
+  # download function to save the statistics table
+  output$downloadStats <- downloadHandler(
+    filename = function() {
+      paste('Stats_', paste(input$ccyPairs,collapse="_"),' ', Sys.Date(), '.csv', sep='')
+    },
+    content = function(file) {
+      rtns.percent <- get.net.returns()/actual.aum()
+      ptf.stats <- calc.stats(rtns.percent)
+      write.csv(ptf.stats, file)
+    }
+  )
+  
   # --------------------------------------
   # plots for tab panels
   # --------------------------------------
   # PnL
   plotPnL <- reactive({
     pnl <- get.pnl()
+    index(pnl) <- as.yearmon(index(pnl))
     main.txt <- paste("Growth of $1 invested in",input$ccyPair,"strategies (net of fees)"," ")
     chart.TimeSeries(pnl,date.format="%b-%Y",main=main.txt,xlab="",ylab="")
   })
@@ -149,29 +173,26 @@ shinyServer(function(input, output) {
     nav <- get.nav()
     main.txt <- paste("NAV of",input$ccyPair,"strategies (net of fees)"," ")
     y.txt <- "million USD"
+    index(nav) <- as.yearmon(index(nav))
     chart.TimeSeries(nav/1.e6,date.format="%b-%Y",main=main.txt,xlab="",ylab=y.txt)
   })
 
   # Open positions
   plotOpenPos <- reactive({
     op <- get.open.positions()
-    x <- input$ccyPair
-    if (x != "all") {
+    op.display <- NULL
+    for (x in input$ccyPairs) {
       op.selected <- op[[x]]
-#       print("---> inside plotOpenPos")
-#       print(op.selected)
-      op.display <- op.selected[,3]
-      main.txt <- paste("Month End Open Positions:",x,sep=" ")
-      if (max(abs(op.display)) > 1.e6) {
-        y.txt <- paste("million",get.ccy1(),sep=" ")
-        vs <- 1.e6
-      } else {
-        y.txt <- paste("thousand",get.ccy1(),sep=" ")
-        vs <- 1.e3
-      }
-      chart.TimeSeries(op.display/vs,type="h",date.format="%b-%Y",main=main.txt,ylab=y.txt,xlab="")
+      op.display <- rbind(op.display,op.selected[,3])
     }
-    })
+    if (length(input$ccyPairs) > 1) {
+      main.txt = "Warning: open positions not meaningful for more than one currency pair"
+    } else {
+      main.txt = paste0("Open positions: ",input$ccyPairs)
+    }
+    index(op.display) <- as.yearmon(index(op.display))
+    chart.TimeSeries(op.display/1.e6,type="h",date.format="%b-%Y",main=main.txt,ylab="million",xlab="")
+  })
 
   # ------------------------------------------------------------------
   #  read in the required data, possibly cached in local files
@@ -247,7 +268,7 @@ shinyServer(function(input, output) {
     f.name <- "cache/trades_extended_pnl.csv"
     if (file.exists(f.name) && !input$reload) {
       trades.pnl <- read.saved.extended.pnl()
-      rtns <- calc.returns(trades.pnl, input$daterange, input$ccyPair)
+      rtns <- calc.returns(trades.pnl, input$daterange, input$ccyPairs)
     } else {
       rtns <- get.returns()
     }
@@ -278,8 +299,8 @@ shinyServer(function(input, output) {
   # get returns from extended trade dataframe
   get.returns <- reactive({
     trades.pnl <- get.trades.extended.cached()
-    rtns <- calc.returns(trades.pnl, input$daterange, input$ccyPair)
-    return(rtns)    
+    rtns <- calc.returns(trades.pnl, input$daterange, input$ccyPairs)
+    return(rtns)
   })
 
   # make returns monthly and subtract fees
@@ -288,10 +309,10 @@ shinyServer(function(input, output) {
   get.net.returns <- reactive({
     rtns <- get.returns.cached()
     rtns.monthly <- apply.monthly(rtns,sum)
-    index(rtns.monthly) <- as.yearmon(index(rtns.monthly))
+    index(rtns.monthly) <- as.Date(index(rtns.monthly))
     fees <- actual.fees()
     print(paste("Fees = ",fees,sep=" "))
-    rtns.net <- calc.net.rtns(rtns.monthly, mgt.fee=fees$mgt, perf.fee=fees$perf,aum=actual.aum(),cmpd=input$compound )
+    rtns.net <- calc.net.rtns(rtns.monthly, mgt.fee=fees$mgt, perf.fee=fees$perf,aum=actual.aum() )
     return(rtns.net)    
   })
 
@@ -337,25 +358,25 @@ shinyServer(function(input, output) {
     return(list("mgt"=input$mgtFee/100, "perf"=input$performanceFee/100))
   })
 
-  # extract major and minor currencies
-  get.ccy2 <- reactive({
-    if (input$ccyPair == "all") {
-      ccy <- "USD"
-    } else {
-      ccy <- substr(input$ccyPair,4,6)
-    }
-    return(ccy)
-  })
-  
-  get.ccy1 <- reactive({
-    if (input$ccyPair == "all") {
-      ccy <- "USD"
-    } else {
-      ccy <- substr(input$ccyPair,1,3)
-    }
-    return(ccy)
-  })
-  
+#   # extract major and minor currencies
+#   get.ccy2 <- reactive({
+#     if (input$ccyPair == "all") {
+#       ccy <- "USD"
+#     } else {
+#       ccy <- substr(input$ccyPair,4,6)
+#     }
+#     return(ccy)
+#   })
+#   
+#   get.ccy1 <- reactive({
+#     if (input$ccyPair == "all") {
+#       ccy <- "USD"
+#     } else {
+#       ccy <- substr(input$ccyPair,1,3)
+#     }
+#     return(ccy)
+#   })
+#   
   
   
 })
