@@ -59,12 +59,15 @@ shinyUI(pageWithSidebar(
                  choices=list("Compound"=TRUE,"Additive"=FALSE),
                  selected="Compound"),
     
-    selectInput("ccyPair",
-                label="Choose Currency pair to view",
+    checkboxGroupInput("ccyPairs",
+                label="Select currency pairs",
                 choices=c("AUDCAD", "AUDJPY", "AUDUSD", "EURAUD", "EURCAD", "EURJPY", "EURUSD",
                           "GBPAUD", "GBPJPY", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY",
-                          "USDSGD", "XAUUSD","all"),
-                selected="all")
+                          "USDSGD", "XAUUSD"),
+                selected=c("AUDCAD", "AUDJPY", "AUDUSD", "EURAUD", "EURCAD", "EURJPY", "EURUSD",
+                           "GBPAUD", "GBPJPY", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY",
+                           "USDSGD", "XAUUSD")
+                )
   ),
   
   # ----------------------------------------------------------------------------------------------  
@@ -83,6 +86,7 @@ shinyUI(pageWithSidebar(
       ),
       
       tabPanel( title = "P&L",
+#                 textOutput("instruments"),
                 plotOutput("pnl"),
                 div(align='right',
                     downloadButton('downloadPnLchart', 'Save Chart'),
@@ -90,18 +94,28 @@ shinyUI(pageWithSidebar(
       ),
       
       tabPanel( title = "NAV",
+#                 h4(textOutput("instruments")),
                 plotOutput("nav"),
                 div(align='right',
                     downloadButton('downloadNAVchart', 'Save Chart'),
                     downloadButton('downloadNAVdata', 'Save Data'))
-    ),
+      ),
       
       tabPanel( title = "Open Positions",
+#                 h4(textOutput("instruments")),
                 plotOutput("openpos"),                
                 div(align='right',
                     downloadButton('downloadOpenPoschart', 'Save Chart'),
                     downloadButton('downloadOpenPosdata', 'Save Data'))
+      ),
+    
+      tabPanel( title = "Statistics",
+#                 h4(textOutput("instruments")),
+                tableOutput("statistics"),                
+                div(align='center',
+                    downloadButton('downloadStats', 'Save Stats'))
       )
+    
       
     )  
   )
