@@ -407,7 +407,7 @@ calc.open.pos <- function(trades.extended.pnl, daterange) {
   # split by ccypair
   open.list <- split(open.pos,open.pos$"Ccy Pair")
   # turn into xts and sum by month
-  open.list.xts <- lapply(open.list, function(x) xts(x[,2:5],x[,6]))
+  open.list.xts <- lapply(open.list, function(x) xts(x[,4:5],x[,6]))
   open.list.xts.m <- lapply(open.list.xts, function(x) apply.monthly(x,colSums))
   # total is a bit meaningless without doing all the cross-rate calculations
   # so we ignore it here
