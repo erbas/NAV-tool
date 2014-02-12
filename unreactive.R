@@ -1,5 +1,6 @@
 library(quantmod)
 library(lubridate)
+Sys.setenv(TZ="Europe/London")
 options(lubridate.verbose = TRUE)
 
 # --------------------------------------------------------------------
@@ -86,7 +87,8 @@ load.reval.files <- function(path,daterange) {
     f.csv <- read.csv(f,stringsAsFactors=FALSE,header=TRUE,skip=1)
     dt <- dmy(f.csv[,1],tz="Europe/London")
     f.xts <- xts(f.csv[,2],dt)
-    idx <- which(as.Date(index(f.xts)) < as.Date(daterange)[1] | as.Date(index(f.xts)) > as.Date(daterange)[2])
+#     idx <- which(as.Date(index(f.xts)) < as.Date(daterange)[1] | as.Date(index(f.xts)) > as.Date(daterange)[2])
+    idx <- which(as.Date(index(f.xts)) < as.Date(daterange)[1])
     f.xts.trimmed <- f.xts[-idx]
     colnames(f.xts.trimmed) <- ccy.pair
     reval.xts <- merge(f.xts.trimmed,reval.xts,fill=0)
@@ -99,7 +101,7 @@ load.reval.files <- function(path,daterange) {
   dt$hour <- 17
   index(reval.xts) <- as.POSIXct(dt)
   idx <- which(duplicated(index(reval.xts)))
-  reval.xts <- reval.xts[-idx,]
+  reval.xts <- na.locf(reval.xts[-idx,])
   write.zoo(reval.xts,file="cache/reval_rates.csv",sep=",")
   return(reval.xts)
 }
@@ -224,21 +226,22 @@ split.trades.at.month.ends <- function(df, reval) {
   month.ends <- seq(from=first(index(reval)), 
                     to=last(index(reval)) %m+% months(2), 
                     by="1 month") - days(1)
-  idx <- lapply(month.ends, function(x) which(index(reval) <= x))
-  eom.reval <- Reduce(rbind, lapply(idx, function(x) reval[last(x),]))  # witchcraft
-  eom.reval.index <- index(eom.reval)
+  idx <- unlist(lapply(month.ends, function(x) last(which(index(reval) <= x))))
+#   eom.reval <- Reduce(rbind, lapply(idx, function(x) reval[last(x),]))  # witchcraft
+  eom.reval <- reval[unique(idx),]
+  eom.reval.dt <- index(eom.reval)
   # create "synthetic" trades to nominally close open positions at month ends
   synth <- NULL
   for (i in 1:nrow(trades.split)) {
     ccy.pair <- trades.split[i,"Ccy pair"]
     cat(i,trades.split$TradeId[i],trades.split[i,"Ccy pair"],"\n")
     # how many extra trades do we need to create?  find list of month ends
-    idx.split <- which(eom.reval.index > trades.split[i,"Entry time"] & eom.reval.index < trades.split[i,"Exit time"])
-    if (length(idx.split) == 0) {
+    idx.split <- which(eom.reval.dt > trades.split[i,"Entry time"] & eom.reval.dt <= trades.split[i,"Exit time"])
+    n.split <- length(idx.split)
+    if (n.split == 0) {
       next   # nothing to see here, move along
     }
-    eom.reval.split <- eom.reval.index[idx.split]
-    n.split <- length(idx.split)
+    eom.reval.split <- eom.reval.dt[idx.split]
     # make the last synthetic trade, ie entry is at eom preceding trade exit
     eom.dt <- last(eom.reval.split)
     new.open <- trades.split[i,]
@@ -329,16 +332,13 @@ calc.pnl <- function(trades.extended, reval) {
 }
 
 # extract returns from extended trade pnl's, trimming to daterange
-calc.returns <- function(trades.pnl, daterange, ccy.pair) {
+calc.returns <- function(trades.pnl, daterange, ccy.pairs) {
   print("---> inside calc.returns")
 #   print(str(trades.pnl))
-  if (ccy.pair == "all") {
-    rtns.xts <- xts(trades.pnl$"PnL USD",trades.pnl$"Exit time")
-  } else {
-    idx <- which(trades.pnl$"Ccy pair" == ccy.pair)
-    rtns.xts <- xts(trades.pnl[idx,"PnL USD"],trades.pnl[idx,"Exit time"])
-  }
-  colnames(rtns.xts) <- ccy.pair
+  rtns.xts <- xts(trades.pnl$"PnL USD",trades.pnl$"Exit time")
+  idx <- which(trades.pnl$"Ccy pair" %in% ccy.pairs)
+  rtns.xts <- xts(trades.pnl[idx,"PnL USD"],trades.pnl[idx,"Exit time"])
+  colnames(rtns.xts) <- "PnL USD"
   # filter returns outside the range
   idx <- which(as.Date(index(rtns.xts)) < as.Date(daterange)[1] | as.Date(index(rtns.xts)) > as.Date(daterange)[2])
   if (length(idx) > 0) {
@@ -350,7 +350,7 @@ calc.returns <- function(trades.pnl, daterange, ccy.pair) {
 # --------------------------------------------------------------------
 #  expenses Calculation
 # --------------------------------------------------------------------
-calc.net.rtns <- function(rtns.monthly, mgt.fee=0.02, perf.fee=0.20, aum=1.e8) {
+calc.net.rtns <- function(rtns.monthly, mgt.fee.rate=0.02, perf.fee.rate=0.20, aum=1.e8) {
   print("---> inside calc.net.rtns")
   zero.xts <- xts(rep(0,length(rtns.monthly)),index(rtns.monthly))
   start.eq <- zero.xts
@@ -362,17 +362,17 @@ calc.net.rtns <- function(rtns.monthly, mgt.fee=0.02, perf.fee=0.20, aum=1.e8) {
   high.water.mark <- zero.xts
   # initialise calc
   start.eq[1] <- aum
-  mgt.fee[1] <- mgt.fee/12*start.eq[1]
-  perf.fee[1] <- perf.fee*(pnl[1] - mgt.fee[1])
+  mgt.fee[1] <- mgt.fee.rate/12*start.eq[1]
+  perf.fee[1] <- perf.fee.rate*(pnl[1] - mgt.fee[1])
   end.eq[1] <- start.eq[1] + pnl[1] - mgt.fee[1] - perf.fee[1] 
   high.water.mark[1] <- end.eq[1]
   # loop
   for (i in 2:length(zero.xts)) {
     start.eq[i] <- end.eq[i-1]
-    mgt.fee[i] <- mgt.fee/12*start.eq[i]
+    mgt.fee[i] <- mgt.fee.rate/12*start.eq[i]
     high.water.mark[i] <- max(high.water.mark[1:i])
     if ( coredata(start.eq[i] + pnl[i] - mgt.fee[i]) > high.water.mark[i]  ) {
-      perf.fee[i] <- perf.fee*( start.eq[i] + pnl[i] - mgt.fee[i] - high.water.mark[i] )
+      perf.fee[i] <- perf.fee.rate*( start.eq[i] + pnl[i] - mgt.fee[i] - high.water.mark[i] )
       end.eq[i] <- start.eq[i] + pnl[i] - mgt.fee[i] - perf.fee[i]
       high.water.mark[i] <- coredata(end.eq[i])
     } else {
@@ -380,10 +380,10 @@ calc.net.rtns <- function(rtns.monthly, mgt.fee=0.02, perf.fee=0.20, aum=1.e8) {
       end.eq[i] <- start.eq[i] + pnl[i] - mgt.fee[i] - perf.fee[i]
     }
   }
-  
-#   res <- merge(start.eq, pnl, mgt.fee, perf.fee, end.eq, high.water.mark)
-  rtns.net <- end.eq - aum
-  return(rtns.net)
+  # end.eq is now cumulative NAV minus mgt and performance fees
+  # we want percentag returns net of fees
+  rtns.net <- diff(rbind(xts(1.e8,index(end.eq)[1] - days(30)),end.eq))
+  return(rtns.net[-1])
 }
 
 
@@ -414,5 +414,42 @@ calc.open.pos <- function(trades.extended.pnl, daterange) {
   return(open.list.xts.m)
 }
 
+# --------------------------------------------------------------------
+#  statistics
+# --------------------------------------------------------------------
 
+calc.stats <- function(pnl,period=12) {
+  print("---> inside calc.stats")
+  ABSRTN <- colSums(pnl)*100
+  CAR <- Return.annualized(pnl,scale=period,geometric=T)*100
+  VOL <- apply(pnl,2,sd)*sqrt(period)*100
+  MAXDRAW <- maxDrawdown(pnl,geometric=T)*100
+  SHARPE <- SharpeRatio.annualized(pnl,Rf=0,scale=period,geometric=T)
+  SORTINO <- SortinoRatio(pnl)
+  SKEWNESS <- skewness(pnl,method="moment")
+  KURTOSIS <- kurtosis(pnl,method="moment")
+  OMEGA <- Omega(pnl,L=0)
+#   KELLY <- KellyRatio(pnl,Rf=0)
+  DRAWDNS <- table.Drawdowns(pnl[,1])
+  n <- min(10,max(as.integer(row.names(DRAWDNS))))
+  DRAWDNS <- table.Drawdowns(pnl[,1],top=n)
+  RECOV <- c(DRAWDNS[1,"Recovery"])
+  CONSEC <- max(DRAWDNS[,"To Trough"])
   
+  statstable <- data.frame(rbind(ABSRTN,CAR,MAXDRAW,RECOV,CONSEC,VOL,SHARPE,SORTINO,SKEWNESS,KURTOSIS,OMEGA))
+  colnames(statstable) <- ""
+  row.names(statstable) <- c("Total Return (% AUM)",
+                             "Compounded Annual Return (%)",
+                             "Max Drawdown (% AUM)",
+                             "Months to Recovery",
+                             "Max Consecutive Losing Months",
+                             "Annualized Volatility (%)",
+                             "Sharpe Ratio",
+                             "Sortino Ratio",
+                             "Skewness",
+                             "Kurtosis",
+                             "Omega Ratio"
+  )
+  
+  return(statstable)  
+}
