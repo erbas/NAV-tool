@@ -132,8 +132,10 @@ for (x in trades.ccy) {
   pnls.ccy <- lapply(pnls.ccy, function(x) {index(x) <- as.Date(index(x)); x})
   # make plot
 #   f.name <- paste0("Performance by Hour/",ccy,".pdf")
-  f.name <- paste0(ccy,".pdf")
-  pdf(file=f.name,width=11,height=8,onefile=TRUE,paper="a4r")
+#   f.name <- paste0(ccy,".pdf")
+#   pdf(file=f.name,width=11,height=8,onefile=TRUE,paper="a4r")
+  f.name <- paste0("Performance by Hour/",ccy,".jpeg")
+  jpeg(filename=f.name,width=800,height=570,quality=0.95)
   layout(t(matrix(1:6,3,2)),respect=FALSE)
   cex.m <- 1
   cex.lg <- 0.7
