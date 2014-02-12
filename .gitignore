@@ -7,3 +7,8 @@ CRNCY_Trade File_Model/**
 Revaluation rates/**
 *.xlsx
 .Rproj.user
+*/*.pdf
+*/*.csv
+*.zip
+*.numbers
+*.numbers/**
