@@ -212,6 +212,7 @@ make.trades.USD <- function(df, reval) {
 #  Split trades which straddle end-of-month
 # --------------------------------------------------------------------
 
+
 split.trades.at.month.ends <- function(df, reval) {
   # NOTE: df is assumed to have been created by make.trades.USD or get.all.trades
   # find trades which close in a different month to the one they start, or year
@@ -453,3 +454,33 @@ calc.stats <- function(pnl,period=12) {
   
   return(statstable)  
 }
+
+# --------------------------------------------------------------------
+#  end of month handling
+# --------------------------------------------------------------------
+
+get.ends.of.months <- function(reval) {
+  eom <- NULL
+  for (y in unique(year(index(reval)))) {
+    ii <- which(year(index(reval)) == y)
+    reval.year <- reval[ii,]
+    for (m in unique(month(index(reval.year)))) {
+      jj <- month(index(reval.year)) == m
+      reval.month <- reval.year[jj,]
+      eom <- rbind(eom,last(reval.month))
+    }
+  }
+  return(eom)
+}
+
+my.apply.monthly <- function(rtns, eom.datetimes, FUN=sum) {
+  monthly.total <- NULL
+  rtns.dt <- index(rtns)
+  for (i in 2:length(eom.datetimes)) {
+    idx <- which(rtns.dt > eom.datetimes[i-1] & rtns.dt <= eom.datetimes[i])
+    total <- FUN(rtns[idx,])
+    monthly.total <- rbind(monthly.total,xts(total,eom.datetimes[i]))
+  }
+  return(monthly.total)
+}
+
