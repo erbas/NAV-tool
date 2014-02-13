@@ -250,7 +250,7 @@ shinyServer(function(input, output) {
     if (file.exists(f.name) && !input$reload) {
       df <- read.saved.reval()
     } else {
-      df <- load.reval.files()
+      df <- load.reval.files(input$reval.dir, input$daterange)
     }
     return(df)    
   })
