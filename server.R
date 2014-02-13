@@ -311,9 +311,9 @@ shinyServer(function(input, output) {
     rtns <- get.returns.cached()
 #     rtns.monthly <- apply.monthly(rtns,sum) # doesn't work for 17:00 eom definition
     reval.rates <- get.reval.rates()
-    eom.revals <- get.ends.of.months(reval)
-    eom.datetime <- index(eom.revals)
-    returns.monthly <- my.apply.monthly(rtns,eom.datetimes)
+    eom.revals <- get.ends.of.months(reval.rates)
+    eom.datetimes <- index(eom.revals)
+    rtns.monthly <- my.apply.monthly(rtns,eom.datetimes)
     index(rtns.monthly) <- as.Date(index(rtns.monthly))
     fees <- actual.fees()
     print(paste("Fees = ",fees,sep=" "))
