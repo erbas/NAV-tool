@@ -195,45 +195,6 @@ shinyServer(function(input, output) {
     chart.TimeSeries(op.display/1.e6,type="h",date.format="%b-%Y",main=main.txt,ylab="million",xlab="")
   })
 
-  # ------------------------------------------------------------------
-  #  read in the required data, possibly cached in local files
-  # ------------------------------------------------------------------
-  
-#   # get the reval data
-#   get.reval.rates <- reactive({
-#     if (input$reload) {
-#       dat <- load.reval.files(input$reval.dir, input$daterange)
-#     } else {
-#       dat <- tryCatch(
-#         read.saved.reval(),
-#         error = function(e) {
-#           print(e)
-#           dat <- load.reval.files(input$reval.dir, input$daterange)
-#           return(dat)
-#         }
-#       )
-#     }
-#     return(dat)
-#   })
-  
-#   # get the trade data
-#   get.all.trades <- reactive({
-#     if (input$reload) {
-#       files.to.load <- find.all.trade.files()
-#       dat <- load.all.trades(files.to.load)
-#     } else {
-#       dat <- tryCatch(
-#         read.saved.trades(),
-#         error = function(e) { 
-#           print(e)
-#           files.to.load <- find.all.trade.files()
-#           dat <- load.all.trades(files.to.load)
-#           return(dat)
-#         }
-#       )
-#     }
-#     return(dat)
-#   })
 
   # find all trade files 
   find.all.trade.files <- reactive({

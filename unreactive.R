@@ -478,8 +478,10 @@ get.ends.of.months <- function(reval) {
 }
 
 my.apply.monthly <- function(rtns, eom.datetimes, FUN=sum) {
-  monthly.total <- NULL
   rtns.dt <- index(rtns)
+  idx <- which(rtns.dt <= eom.datetimes[1])  # danger: assuming eom.datetimes starts at the right place
+  first.total <- FUN(rtns[idx,])  
+  monthly.total <- xts(first.total, eom.datetimes[1])
   for (i in 2:length(eom.datetimes)) {
     idx <- which(rtns.dt > eom.datetimes[i-1] & rtns.dt <= eom.datetimes[i])
     total <- FUN(rtns[idx,])
