@@ -336,9 +336,12 @@ calc.pnl <- function(trades.extended, reval) {
 calc.returns <- function(trades.pnl, daterange, ccy.pairs) {
   print("---> inside calc.returns")
 #   print(str(trades.pnl))
-  rtns.xts <- xts(trades.pnl$"PnL USD",trades.pnl$"Exit time")
-  idx <- which(trades.pnl$"Ccy pair" %in% ccy.pairs)
-  rtns.xts <- xts(trades.pnl[idx,"PnL USD"],trades.pnl[idx,"Exit time"])
+  idx <- NULL
+  for (ccy in ccy.pairs) {
+    idx <- c(idx,grep(pattern=ccy,x=trades.pnl$"Ccy pair",fixed=TRUE,ignore.case=FALSE,value=FALSE))
+  }
+  rtns.df <- trades.pnl[unique(idx), c("Ccy pair","PnL USD","Exit time")]
+  rtns.xts <- xts(rtns.df[idx,"PnL USD"],rtns.df[idx,"Exit time"])
   colnames(rtns.xts) <- "PnL USD"
   # filter returns outside the range
   idx <- which(as.Date(index(rtns.xts)) < as.Date(daterange)[1] | as.Date(index(rtns.xts)) > as.Date(daterange)[2])
@@ -346,6 +349,7 @@ calc.returns <- function(trades.pnl, daterange, ccy.pairs) {
     rtns.xts <- rtns.xts[-idx]
   }
   return(rtns.xts)
+#   return(rtns.df)
 }
 
 # --------------------------------------------------------------------
