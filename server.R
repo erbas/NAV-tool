@@ -120,10 +120,11 @@ shinyServer(function(input, output) {
       op <- get.open.positions()
       op.display <- NULL
       for (x in input$ccyPairs) {
-        op.selected <- data.frame("ccy"=x,"op"=op[[x]])
-        op.display <- rbind(op.display, op.selected)
+        op.selected <- op[[x]]
+        index(op.selected) <- as.Date(index(op.selected))
+        op.df <- data.frame("date"=index(op.selected),"ccy"=x,"Major Ccy"=op.selected[,1],"USD"=op.selected[,2])
+        op.display <- rbind(op.display, op.df)
       }
-      index(op.display) <- as.Date(index(op.display))
       write.zoo(op.display, file,sep=",")
     }
   )
@@ -183,7 +184,7 @@ shinyServer(function(input, output) {
     op.display <- NULL
     for (x in input$ccyPairs) {
       op.selected <- op[[x]]
-      op.display <- rbind(op.display,op.selected[,3])
+      op.display <- rbind(op.display,op.selected[,1])
     }
     if (length(input$ccyPairs) > 1) {
       main.txt = "Warning: open positions not meaningful for more than one currency pair"
@@ -308,7 +309,11 @@ shinyServer(function(input, output) {
   #     : ie first reactive function called from pnl and nav tabs
   get.net.returns <- reactive({
     rtns <- get.returns.cached()
-    rtns.monthly <- apply.monthly(rtns,sum)
+#     rtns.monthly <- apply.monthly(rtns,sum) # doesn't work for 17:00 eom definition
+    reval.rates <- get.reval.rates()
+    eom.revals <- get.ends.of.months(reval)
+    eom.datetime <- index(eom.revals)
+    returns.monthly <- my.apply.monthly(rtns,eom.datetimes)
     index(rtns.monthly) <- as.Date(index(rtns.monthly))
     fees <- actual.fees()
     print(paste("Fees = ",fees,sep=" "))
