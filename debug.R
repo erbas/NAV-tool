@@ -1,28 +1,38 @@
 # 
-path1 <- "CRNCY_Trade File_Model/"
-path2 <- "CMDTY_Trade File_Model/"
+path1 <- "CRNCY_Trade File_Model/Sub Strategy/"
+path2 <- "CMDTY_Trade File_Model/Sub Strategy//Gold"
 path3 <- "Revaluation rates/"
 # path1 <- "E:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model"
 # path2 <- "E:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model/"
 # path3 <- "E:/Cloud Data/Data History/Revaluation rates/"
 files.to.load <- c(list.files(path1,pattern="*.csv",full.names=TRUE,recursive=TRUE), list.files(path2,pattern="*.csv",full.names=TRUE,recursive=TRUE))
 
-trade.data <- load.all.trades(files.to.load)
-reval <- load.reval.files(path3,c("2010-01-01","2013-12-31"))
+# trade.data <- load.all.trades(files.to.load)
+# reval <- load.reval.files(path3,c("2010-01-01","2013-12-31"))
+# trades.usd <- make.trades.USD(trade.data, reval)
+# extended.trades.usd <- split.trades.at.month.ends(trades.usd, reval)
+# extended.trades.pnl <- calc.pnl(extended.trades.usd, reval)
 
 trade.data <- read.saved.trades()
 reval <- read.saved.reval()
 trades.usd <- read.saved.usd()
 extended.trades.pnl <- read.saved.extended.pnl()
 
-trades.usd <- make.trades.USD(trade.data, reval)
-extended.trades.usd <- split.trades.at.month.ends(trades.usd, reval)
-extended.trades.pnl <- calc.pnl(extended.trades.usd, reval)
+
+
 all.ccys <- c("AUDCAD", "AUDJPY", "AUDUSD", "EURAUD", "EURCAD", "EURJPY", "EURUSD", "GBPAUD", "GBPJPY", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY", "USDSGD", "XAUUSD")
 
+# all.ccys <- "XAUUSD"
+
+gold.idx <- grep("XAUUSD",trades.usd$"Ccy pair",value=FALSE,fixed=TRUE)
+gold <- trades.usd[gold.idx,]
+gold.xts <- xts( (gold$"Exit price" - gold$"Entry price")*gold$"Amount major"*gold$Sign, gold$"Exit time")
+
 rtns <- calc.returns(extended.trades.pnl,c("2010-01-01","2013-12-31"), all.ccys)
-rtns.monthly <- apply.monthly(rtns,sum)
-index(rtns.monthly) <- as.Date(index(rtns.monthly))
+colnames(rtns.xts) <- "PnL.USD"
+
+eom <- get.ends.of.months(reval)
+rtns.monthly <- my.apply.monthly(rtns.xts,eom.datetimes=index(eom),FUN=sum)
 
 rtns.net <- calc.net.rtns(rtns.monthly,mgt.fee=0.02,perf.fee=0.2,aum=1.e8)
 rtns.net.0 <- calc.net.rtns(rtns.monthly,mgt.fee=0.0,perf.fee=0.0,aum=1.e8)
@@ -152,3 +162,18 @@ head(res,13)
 
 
 # -----------------------------------------------------------------------------------
+
+rtns.prg.m <- read.zoo("Extended Markets BSc_pnl_monthly.csv",format="%Y-%m-%d",sep=",",header=TRUE)
+
+rtns.prg.d <- read.zoo("Extended Markets BSc_pnl_daily.csv",header=TRUE,sep=",")
+index(rtns.prg.d) <- as.POSIXct(index(rtns.prg.d),tz="Europe/London",origin="1970-01-01 00:00")
+rtns.prg.my.m <- my.apply.monthly(rtns=rtns.prg.d[,1],eom.datetimes=index(eom),FUN=sum)
+index(rtns.prg.my.m) <- as.Date(index(rtns.prg.my.m))
+
+rtns.monthly.pct <- rtns.monthly/1.e8
+index(rtns.monthly.pct) <- as.Date(index(rtns.monthly.pct))
+
+rtns.prg <- merge(rtns.prg.my.m, rtns.prg.m[,1], rtns.monthly.pct, all=TRUE)
+colnames(rtns.prg) <- c("my.monthly.prg","monthly.prg","my.monthly")
+
+
