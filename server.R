@@ -62,7 +62,7 @@ shinyServer(function(input, output) {
   output$downloadPnLdata <- downloadHandler(
     filename = function() paste('PnL ', Sys.Date(), '.csv', sep=''),
     content = function(file) {
-      rtns <- get.net.returns()/actual.aum()
+      rtns <- get.net.returns()
       index(rtns) <- as.Date(index(rtns))
       write.zoo(rtns, file, sep=",")
     }
@@ -199,41 +199,41 @@ shinyServer(function(input, output) {
   #  read in the required data, possibly cached in local files
   # ------------------------------------------------------------------
   
-  # get the reval data
-  get.reval.rates <- reactive({
-    if (input$reload) {
-      dat <- load.reval.files(input$reval.dir, input$daterange)
-    } else {
-      dat <- tryCatch(
-        read.saved.reval(),
-        error = function(e) {
-          print(e)
-          dat <- load.reval.files(input$reval.dir, input$daterange)
-          return(dat)
-        }
-      )
-    }
-    return(dat)
-  })
+#   # get the reval data
+#   get.reval.rates <- reactive({
+#     if (input$reload) {
+#       dat <- load.reval.files(input$reval.dir, input$daterange)
+#     } else {
+#       dat <- tryCatch(
+#         read.saved.reval(),
+#         error = function(e) {
+#           print(e)
+#           dat <- load.reval.files(input$reval.dir, input$daterange)
+#           return(dat)
+#         }
+#       )
+#     }
+#     return(dat)
+#   })
   
-  # get the trade data
-  get.all.trades <- reactive({
-    if (input$reload) {
-      files.to.load <- find.all.trade.files()
-      dat <- load.all.trades(files.to.load)
-    } else {
-      dat <- tryCatch(
-        read.saved.trades(),
-        error = function(e) { 
-          print(e)
-          files.to.load <- find.all.trade.files()
-          dat <- load.all.trades(files.to.load)
-          return(dat)
-        }
-      )
-    }
-    return(dat)
-  })
+#   # get the trade data
+#   get.all.trades <- reactive({
+#     if (input$reload) {
+#       files.to.load <- find.all.trade.files()
+#       dat <- load.all.trades(files.to.load)
+#     } else {
+#       dat <- tryCatch(
+#         read.saved.trades(),
+#         error = function(e) { 
+#           print(e)
+#           files.to.load <- find.all.trade.files()
+#           dat <- load.all.trades(files.to.load)
+#           return(dat)
+#         }
+#       )
+#     }
+#     return(dat)
+#   })
 
   # find all trade files 
   find.all.trade.files <- reactive({
@@ -244,6 +244,28 @@ shinyServer(function(input, output) {
   # ------------------------------------------------------------------
   #  wrapper to cache the extended trade and pnl calculations
   # ------------------------------------------------------------------
+  
+  get.reval.cached <- reactive({
+    f.name <- "cache/reval_rates.csv"
+    if (file.exists(f.name) && !input$reload) {
+      df <- read.saved.reval()
+    } else {
+      df <- load.reval.files()
+    }
+    return(df)    
+  })
+
+  get.all.trades.cached <- reactive({
+    f.name <- "cache/all_trades.csv"
+    if (file.exists(f.name) && !input$reload) {
+      df <- read.saved.trades()
+    } else {
+      files.to.load <- find.all.trade.files()
+      df <- load.all.trades(files.to.load)
+    }
+    return(df)
+  })
+  
   get.trades.usd.cached <- reactive({
     f.name <- "cache/trades_usd.csv"
     if (file.exists(f.name) && !input$reload) {
@@ -266,6 +288,7 @@ shinyServer(function(input, output) {
   })
     
   get.returns.cached <- reactive({
+    print("---> inside get.returns.cached ---")
     f.name <- "cache/trades_extended_pnl.csv"
     if (file.exists(f.name) && !input$reload) {
       trades.pnl <- read.saved.extended.pnl()
@@ -282,8 +305,8 @@ shinyServer(function(input, output) {
   
   # get trades, convert amounts into USD
   get.trades.usd <- reactive({
-    trade.data <- get.all.trades()
-    reval.rates <- get.reval.rates()
+    trade.data <- get.all.trades.cached()
+    reval.rates <- get.reval.cached()
     trades.usd <- make.trades.USD(trade.data, reval.rates)
     return(trades.usd)
   })
@@ -291,7 +314,7 @@ shinyServer(function(input, output) {
   # get trades, split end-of-month trades, calculate pnl for each trade
   get.trades.extended <- reactive({
     trades.usd <- get.trades.usd.cached()
-    reval.rates <- get.reval.rates()
+    reval.rates <- get.reval.cached()
     trades.extended <- split.trades.at.month.ends(trades.usd, reval.rates)
     trades.pnl <- calc.pnl(trades.extended, reval.rates)
     return(trades.pnl)
@@ -308,9 +331,9 @@ shinyServer(function(input, output) {
   # NOTE: this is the entry point from the UI, 
   #     : ie first reactive function called from pnl and nav tabs
   get.net.returns <- reactive({
+    print("---> inside get.net.returns ---")
     rtns <- get.returns.cached()
-#     rtns.monthly <- apply.monthly(rtns,sum) # doesn't work for 17:00 eom definition
-    reval.rates <- get.reval.rates()
+    reval.rates <- get.reval.cached()
     eom.revals <- get.ends.of.months(reval.rates)
     eom.datetimes <- index(eom.revals)
     rtns.monthly <- my.apply.monthly(rtns,eom.datetimes)
