@@ -1,6 +1,5 @@
 .RData
 .Rhistory
-*.Rproj
 *.csv
 CMDTY_Trade File_Model/**
 CRNCY_Trade File_Model/**
