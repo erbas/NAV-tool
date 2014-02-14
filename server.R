@@ -257,6 +257,7 @@ shinyServer(function(input, output) {
     } else {
       rtns <- get.returns()
     }
+    print(head(rtns))
     return(rtns)
   })
 
@@ -283,8 +284,10 @@ shinyServer(function(input, output) {
   
   # get returns from extended trade dataframe
   get.returns <- reactive({
+    print("---> inside get.returns ---")
     trades.pnl <- get.trades.extended.cached()
     rtns <- calc.returns(trades.pnl, input$daterange, input$ccyPairs)
+    print(head(rtns))
     return(rtns)
   })
 
@@ -301,7 +304,9 @@ shinyServer(function(input, output) {
     index(rtns.monthly) <- as.Date(index(rtns.monthly))
     fees <- actual.fees()
     print(paste("Fees = ",fees,sep=" "))
+    print(head(rtns.monthly))
     rtns.net <- calc.net.rtns(rtns.monthly, mgt.fee=fees$mgt, perf.fee=fees$perf,aum=actual.aum() )
+    print(head(rtns.net))
     return(rtns.net)    
   })
 

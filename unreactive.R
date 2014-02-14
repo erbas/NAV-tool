@@ -334,7 +334,7 @@ calc.pnl <- function(trades.extended, reval) {
 
 # extract returns from extended trade pnl's, trimming to daterange
 calc.returns <- function(trades.pnl, daterange, ccy.pairs) {
-  print("---> inside calc.returns")
+  print("---> inside calc.returns ---")
 #   print(str(trades.pnl))
   idx <- NULL
   for (ccy in ccy.pairs) {
@@ -348,15 +348,15 @@ calc.returns <- function(trades.pnl, daterange, ccy.pairs) {
   if (length(idx) > 0) {
     rtns.xts <- rtns.xts[-idx]
   }
+  print(head(rtns.xts))
   return(rtns.xts)
-#   return(rtns.df)
 }
 
 # --------------------------------------------------------------------
 #  expenses Calculation
 # --------------------------------------------------------------------
 calc.net.rtns <- function(rtns.monthly, mgt.fee.rate=0.02, perf.fee.rate=0.20, aum=1.e8) {
-  print("---> inside calc.net.rtns")
+  print("---> inside calc.net.rtns ---")
   zero.xts <- xts(rep(0,length(rtns.monthly)),index(rtns.monthly))
   start.eq <- zero.xts
   pnl <- rtns.monthly
@@ -388,6 +388,7 @@ calc.net.rtns <- function(rtns.monthly, mgt.fee.rate=0.02, perf.fee.rate=0.20, a
   # end.eq is now cumulative NAV minus mgt and performance fees
   # we want percentag returns net of fees
   rtns.net <- diff(rbind(xts(1.e8,index(end.eq)[1] - days(30)),end.eq))
+  print(head(rtns.net))
   return(rtns.net[-1])
 }
 
