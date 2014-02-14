@@ -294,8 +294,6 @@ shinyServer(function(input, output) {
     if (length(idx) > 0) {
       rtns <- rtns[-idx]
     }
-    #     print(head(rtns))
-    print(paste(first(index(rtns)),last(index(rtns))),sep="   ")
     print("<--- leaving get.returns ---")
     return(rtns)
   })
@@ -311,10 +309,7 @@ shinyServer(function(input, output) {
     rtns.monthly <- my.apply.monthly(rtns, index(eom.revals))
     index(rtns.monthly) <- as.Date(index(rtns.monthly))
     fees <- actual.fees()
-    print(paste("Fees = ",fees,sep=" "))
     rtns.net <- apply.fees(rtns.monthly, mgt.fee=fees$mgt, perf.fee=fees$perf,aum=actual.aum() )
-#     print(head(rtns.net))
-    print(paste(first(index(rtns.net)),last(index(rtns.net))),sep="   ")
     print("<--- leaving get.net.returns ---")    
     return(rtns.net)    
   })
@@ -328,7 +323,6 @@ shinyServer(function(input, output) {
     } else {
       pnl <- 1 + cumsum(rtns.percent)
     }
-    print(paste(first(index(pnl)),last(index(pnl))),sep="   ")
     print("<--- leaving get.pnl ---")
     return(pnl)
   })
