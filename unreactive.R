@@ -215,22 +215,33 @@ make.trades.USD <- function(df, reval) {
 
 split.trades.at.month.ends <- function(df, reval) {
   # NOTE: df is assumed to have been created by make.trades.USD or get.all.trades
-  # find trades which close in a different month to the one they start, or year
   print("---> inside split.trades.at.month.ends")
   df <- data.frame("TradeId"=c(1:nrow(df)),"SplitId"=rep(0,nrow(df)),df)
   names(df) <- gsub("."," ",names(df),fixed=TRUE)
-#   print(str(df))
-  idx.split.main <- which(month(df$"Entry time") != month(df$"Exit time") | 
-                     year(df$"Entry time") != year(df$"Exit time"))
-  trades.split <- df[idx.split.main,]
-  # find the end of month revals (ie last trading day of each month)
-  month.ends <- seq(from=first(index(reval)), 
-                    to=last(index(reval)) %m+% months(2), 
-                    by="1 month") - days(1)
-  idx <- unlist(lapply(month.ends, function(x) last(which(index(reval) <= x))))
-#   eom.reval <- Reduce(rbind, lapply(idx, function(x) reval[last(x),]))  # witchcraft
-  eom.reval <- reval[unique(idx),]
+  # use end-of-month datetimes to find trades which need to be split
+  eom.reval <- get.ends.of.months(reval)
   eom.reval.dt <- index(eom.reval)
+  idx.split.main <- NULL
+  
+  for (i in 1:length(eom.reval.dt)) {
+    idx <- which(df$"Entry time" <= eom.reval.dt[i] & df$"Exit time" > eom.reval.dt[i])
+    idx.split.main <- c(idx.split.main,idx)
+  }
+  idx.split.main <- unique(idx.split.main)
+  trades.split <- df[idx.split.main,]
+  
+#   idx.split.main <- which(month(df$"Entry time") != month(df$"Exit time") | 
+#                      year(df$"Entry time") != year(df$"Exit time"))
+#   trades.split <- df[idx.split.main,]
+#   # find the end of month revals (ie last trading day of each month)
+#   month.ends <- seq(from=first(index(reval)), 
+#                     to=last(index(reval)) %m+% months(2), 
+#                     by="1 month") - days(1)
+#   idx <- unlist(lapply(month.ends, function(x) last(which(index(reval) <= x))))
+# #   eom.reval <- Reduce(rbind, lapply(idx, function(x) reval[last(x),]))  # witchcraft
+#   eom.reval <- reval[unique(idx),]
+#   eom.reval.dt <- index(eom.reval)
+
   # create "synthetic" trades to nominally close open positions at month ends
   synth <- NULL
   for (i in 1:nrow(trades.split)) {
@@ -476,13 +487,17 @@ get.ends.of.months <- function(reval) {
 
 my.apply.monthly <- function(rtns, eom.datetimes, FUN=sum) {
   rtns.dt <- index(rtns)
-  idx <- which(rtns.dt <= eom.datetimes[1])  # danger: assuming eom.datetimes starts at the right place
+  # find range of datetimes
+  eom.first <- first(which(eom.datetimes > rtns.dt[1]))
+  eom.last <- last(which(eom.datetimes < last(rtns.dt))) + 1
+  eom.dt <- eom.datetimes[eom.first:eom.last]
+  idx <- which(rtns.dt <= eom.dt[1])  # danger: assuming eom.datetimes starts at the right place
   first.total <- FUN(rtns[idx,])  
-  monthly.total <- xts(first.total, eom.datetimes[1])
-  for (i in 2:length(eom.datetimes)) {
-    idx <- which(rtns.dt > eom.datetimes[i-1] & rtns.dt <= eom.datetimes[i])
+  monthly.total <- xts(first.total, eom.dt[1])
+  for (i in 2:length(eom.dt)) {
+    idx <- which(rtns.dt > eom.dt[i-1] & rtns.dt <= eom.dt[i])
     total <- FUN(rtns[idx,])
-    monthly.total <- rbind(monthly.total,xts(total,eom.datetimes[i]))
+    monthly.total <- rbind(monthly.total,xts(total,eom.dt[i]))
   }
   return(monthly.total)
 }
