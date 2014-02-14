@@ -7,32 +7,55 @@ path3 <- "Revaluation rates/"
 # path3 <- "E:/Cloud Data/Data History/Revaluation rates/"
 files.to.load <- c(list.files(path1,pattern="*.csv",full.names=TRUE,recursive=TRUE), list.files(path2,pattern="*.csv",full.names=TRUE,recursive=TRUE))
 
-# trade.data <- load.all.trades(files.to.load)
-# reval <- load.reval.files(path3,c("2010-01-01","2013-12-31"))
-# trades.usd <- make.trades.USD(trade.data, reval)
-# extended.trades.usd <- split.trades.at.month.ends(trades.usd, reval)
-# extended.trades.pnl <- calc.pnl(extended.trades.usd, reval)
+trade.data <- load.all.trades(files.to.load)
+reval <- load.reval.files(path3,c("2010-01-01","2013-12-31"))
+trades.usd <- make.trades.USD(trade.data, reval)
+extended.trades.usd <- split.trades.at.month.ends(trades.usd, reval)
+extended.trades.pnl <- calc.pnl(extended.trades.usd, reval)
 
-trade.data <- read.saved.trades()
-reval <- read.saved.reval()
-trades.usd <- read.saved.usd()
-extended.trades.pnl <- read.saved.extended.pnl()
+# trade.data <- read.saved.trades()
+# reval <- read.saved.reval()
+# trades.usd <- read.saved.usd()
+# extended.trades.pnl <- read.saved.extended.pnl()
 
 
 
+all.ccys <- "XAUUSD"
+
+gold.idx <- grep("XAUUSD",extended.trades.pnl$"Ccy pair",value=FALSE,fixed=TRUE)
+gold <- extended.trades.pnl[gold.idx,]
+
+april.12 <- gold[ gold$"Exit time" < ymd("2012-05-01",tz="Europe/London"),]
+gold.raw <- trade.data[ trade.data$"Ccy pair" == "XAUUSD",]
+gold.raw.12.04 <- gold.raw[gold.raw$"Entry time" < ymd("2012-05-01",tz="Europe/London"),]
+
+gold.usd <- trades.usd[ trades.usd$"Ccy pair" == "XAUUSD",]
+gold.usd.12.04 <- gold.usd[gold.usd$"Entry time" <= ymd_hm("2012-04-30 17:00",tz="Europe/London"),]
+
+gold.split <- extended.trades.pnl[extended.trades.pnl$"Ccy pair" == "XAUUSD", ]
+gold.split.12.04 <- gold.split[gold.split$"Entry time" <= ymd_hm("2012-04-30 17:00",tz="Europe/London"),]
+gold.split.12.05 <- gold.split[gold.split$"Entry time" <= ymd_hm("2012-05-31 17:00",tz="Europe/London") & gold.split$"Entry time" > ymd_hm("2012-04-30 17:00",tz="Europe/London"),]
+
+gold.xts <- xts( (gold.usd$"Exit price" - gold.usd$"Entry price")*gold.usd$"Amount major"*gold.usd$Sign, gold.usd$"Exit time")
+
+gold.dates <- gold.xts
+index(gold.dates) <- as.Date(index(gold.dates))
+gold.daily <- apply.daily(gold.dates,sum)/1.e8
+
+#####
 all.ccys <- c("AUDCAD", "AUDJPY", "AUDUSD", "EURAUD", "EURCAD", "EURJPY", "EURUSD", "GBPAUD", "GBPJPY", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY", "USDSGD", "XAUUSD")
 
-# all.ccys <- "XAUUSD"
-
-gold.idx <- grep("XAUUSD",trades.usd$"Ccy pair",value=FALSE,fixed=TRUE)
-gold <- trades.usd[gold.idx,]
-gold.xts <- xts( (gold$"Exit price" - gold$"Entry price")*gold$"Amount major"*gold$Sign, gold$"Exit time")
-
-rtns <- calc.returns(extended.trades.pnl,c("2010-01-01","2013-12-31"), all.ccys)
-colnames(rtns.xts) <- "PnL.USD"
+rtns <- calc.returns(extended.trades.pnl,ccy.pairs=all.ccys)
+colnames(rtns) <- "PnL.USD"
 
 eom <- get.ends.of.months(reval)
-rtns.monthly <- my.apply.monthly(rtns.xts,eom.datetimes=index(eom),FUN=sum)
+rtns.monthly <- my.apply.monthly(rtns,eom.datetimes=index(eom),FUN=sum)
+
+rtns.daily.prg <- read.zoo("Extended Markets BSc_pnl_daily.csv",header=TRUE,sep=",")
+rtns.monthly.prg <- read.zoo("Extended Markets BSc_pnl_monthly.csv",header=TRUE,sep=",")
+
+rtns.xts <- xts( (trades.usd$"Exit price" - trades.usd$"Entry price")*trades.usd$"Amount major"*trades.usd$Sign, trades.usd$"Exit time")
+
 
 rtns.net <- calc.net.rtns(rtns.monthly,mgt.fee=0.02,perf.fee=0.2,aum=1.e8)
 rtns.net.0 <- calc.net.rtns(rtns.monthly,mgt.fee=0.0,perf.fee=0.0,aum=1.e8)
@@ -177,3 +200,11 @@ rtns.prg <- merge(rtns.prg.my.m, rtns.prg.m[,1], rtns.monthly.pct, all=TRUE)
 colnames(rtns.prg) <- c("my.monthly.prg","monthly.prg","my.monthly")
 
 
+# -----------------------------------------------------------------------------------
+#  debug my.apply.monthly
+# -----------------------------------------------------------------------------------
+
+dt <- ymd_hm(c("2012-05-01 11:00","2012-05-31 17:00","2012-05-31 17:05","2012-06-29 16:38","2012-06-29 17:02","2012-07-11 11:00"),tz="Europe/London")
+x <- xts(rep(1,6), dt)
+my.apply.monthly(x,eom.datetimes=index(eom),FUN=sum)
+x
