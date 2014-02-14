@@ -149,7 +149,7 @@ shinyServer(function(input, output) {
   # download function to save the statistics table
   output$downloadStats <- downloadHandler(
     filename = function() {
-      paste('Stats_', paste(input$ccyPairs,collapse="_"),' ', Sys.Date(), '.csv', sep='')
+      paste('Stats',' ', Sys.Date(), '.csv', sep='')
     },
     content = function(file) {
       rtns.percent <- get.net.returns()/actual.aum()
@@ -287,7 +287,8 @@ shinyServer(function(input, output) {
     print("---> inside get.returns ---")
     trades.pnl <- get.trades.extended.cached()
     rtns <- calc.returns(trades.pnl, input$daterange, input$ccyPairs)
-    print(head(rtns))
+#     print(head(rtns))
+    print("<--- leaving get.returns ---")
     return(rtns)
   })
 
@@ -296,17 +297,17 @@ shinyServer(function(input, output) {
   #     : ie first reactive function called from pnl and nav tabs
   get.net.returns <- reactive({
     print("---> inside get.net.returns ---")
-    rtns <- get.returns.cached()
+    rtns <- get.returns()
     reval.rates <- get.reval.cached()
     eom.revals <- get.ends.of.months(reval.rates)
-    eom.datetimes <- index(eom.revals)
-    rtns.monthly <- my.apply.monthly(rtns,eom.datetimes)
+    rtns.monthly <- my.apply.monthly(rtns, index(eom.revals))
     index(rtns.monthly) <- as.Date(index(rtns.monthly))
     fees <- actual.fees()
     print(paste("Fees = ",fees,sep=" "))
     print(head(rtns.monthly))
-    rtns.net <- calc.net.rtns(rtns.monthly, mgt.fee=fees$mgt, perf.fee=fees$perf,aum=actual.aum() )
-    print(head(rtns.net))
+    rtns.net <- apply.fees(rtns.monthly, mgt.fee=fees$mgt, perf.fee=fees$perf,aum=actual.aum() )
+#     print(head(rtns.net))
+    print("<--- leaving get.net.returns ---")    
     return(rtns.net)    
   })
 
