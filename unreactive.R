@@ -230,18 +230,6 @@ split.trades.at.month.ends <- function(df, reval) {
   idx.split.main <- unique(idx.split.main)
   trades.split <- df[idx.split.main,]
   
-#   idx.split.main <- which(month(df$"Entry time") != month(df$"Exit time") | 
-#                      year(df$"Entry time") != year(df$"Exit time"))
-#   trades.split <- df[idx.split.main,]
-#   # find the end of month revals (ie last trading day of each month)
-#   month.ends <- seq(from=first(index(reval)), 
-#                     to=last(index(reval)) %m+% months(2), 
-#                     by="1 month") - days(1)
-#   idx <- unlist(lapply(month.ends, function(x) last(which(index(reval) <= x))))
-# #   eom.reval <- Reduce(rbind, lapply(idx, function(x) reval[last(x),]))  # witchcraft
-#   eom.reval <- reval[unique(idx),]
-#   eom.reval.dt <- index(eom.reval)
-
   # create "synthetic" trades to nominally close open positions at month ends
   synth <- NULL
   for (i in 1:nrow(trades.split)) {
@@ -353,7 +341,6 @@ calc.returns <- function(trades.pnl, ccy.pairs) {
   rtns.df <- trades.pnl[unique(idx), c("Ccy pair","PnL USD","Exit time")]
   rtns.xts <- xts(rtns.df[,"PnL USD"],rtns.df[,"Exit time"])
   colnames(rtns.xts) <- "PnL USD"
-#   print(head(rtns.xts))
   print("<--- leaving calc.returns ---")
   return(rtns.xts)
 }
@@ -491,7 +478,8 @@ my.apply.monthly <- function(rtns, eom.datetimes, FUN=sum) {
   eom.first <- first(which(eom.datetimes > rtns.dt[1]))
   eom.last <- last(which(eom.datetimes < last(rtns.dt))) + 1
   eom.dt <- eom.datetimes[eom.first:eom.last]
-  idx <- which(rtns.dt <= eom.dt[1])  # danger: assuming eom.datetimes starts at the right place
+  # begin applying FUN - first data point is special
+  idx <- which(rtns.dt <= eom.dt[1])  
   first.total <- FUN(rtns[idx,])  
   monthly.total <- xts(first.total, eom.dt[1])
   for (i in 2:length(eom.dt)) {
