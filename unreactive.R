@@ -332,8 +332,8 @@ calc.pnl <- function(trades.extended, reval) {
   return(df)
 }
 
-# extract returns from extended trade pnl's, trimming to daterange
-calc.returns <- function(trades.pnl, daterange, ccy.pairs) {
+# extract returns for selected currency pairs from extended trade pnl's 
+calc.returns <- function(trades.pnl, ccy.pairs) {
   print("---> inside calc.returns ---")
   idx <- NULL
   for (ccy in ccy.pairs) {
@@ -342,12 +342,7 @@ calc.returns <- function(trades.pnl, daterange, ccy.pairs) {
   rtns.df <- trades.pnl[unique(idx), c("Ccy pair","PnL USD","Exit time")]
   rtns.xts <- xts(rtns.df[,"PnL USD"],rtns.df[,"Exit time"])
   colnames(rtns.xts) <- "PnL USD"
-  # filter returns outside the range
-  idx <- which(as.Date(index(rtns.xts)) < as.Date(daterange)[1] | as.Date(index(rtns.xts)) > as.Date(daterange)[2])
-  if (length(idx) > 0) {
-    rtns.xts <- rtns.xts[-idx]
-  }
-  print(head(rtns.xts))
+#   print(head(rtns.xts))
   print("<--- leaving calc.returns ---")
   return(rtns.xts)
 }

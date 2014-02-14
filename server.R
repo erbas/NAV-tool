@@ -253,11 +253,12 @@ shinyServer(function(input, output) {
     f.name <- "cache/trades_extended_pnl.csv"
     if (file.exists(f.name) && !input$reload) {
       trades.pnl <- read.saved.extended.pnl()
-      rtns <- calc.returns(trades.pnl, input$daterange, input$ccyPairs)
+      rtns <- calc.returns(trades.pnl, input$ccyPairs)
     } else {
       rtns <- get.returns()
     }
-    print(head(rtns))
+#     print(head(rtns))
+    print("<--- leaving get.returns.cached ---")
     return(rtns)
   })
 
@@ -286,8 +287,15 @@ shinyServer(function(input, output) {
   get.returns <- reactive({
     print("---> inside get.returns ---")
     trades.pnl <- get.trades.extended.cached()
-    rtns <- calc.returns(trades.pnl, input$daterange, input$ccyPairs)
-#     print(head(rtns))
+    rtns <- calc.returns(trades.pnl, input$ccyPairs)
+    # filter returns outside the range
+    dr <- as.Date(input$daterange)
+    idx <- which(as.Date(index(rtns)) < dr[1] | as.Date(index(rtns)) > dr[2])
+    if (length(idx) > 0) {
+      rtns <- rtns[-idx]
+    }
+    #     print(head(rtns))
+    print(paste(first(index(rtns)),last(index(rtns))),sep="   ")
     print("<--- leaving get.returns ---")
     return(rtns)
   })
@@ -304,21 +312,24 @@ shinyServer(function(input, output) {
     index(rtns.monthly) <- as.Date(index(rtns.monthly))
     fees <- actual.fees()
     print(paste("Fees = ",fees,sep=" "))
-    print(head(rtns.monthly))
     rtns.net <- apply.fees(rtns.monthly, mgt.fee=fees$mgt, perf.fee=fees$perf,aum=actual.aum() )
 #     print(head(rtns.net))
+    print(paste(first(index(rtns.net)),last(index(rtns.net))),sep="   ")
     print("<--- leaving get.net.returns ---")    
     return(rtns.net)    
   })
 
   # functions to gnerate plottable data
   get.pnl <- reactive({
+    print("---> inside get.pnl ---")
     rtns.percent <- get.net.returns()/actual.aum()
     if (input$compound) {
       pnl <- cumprod(1+rtns.percent)
     } else {
       pnl <- 1 + cumsum(rtns.percent)
     }
+    print(paste(first(index(pnl)),last(index(pnl))),sep="   ")
+    print("<--- leaving get.pnl ---")
     return(pnl)
   })
 
