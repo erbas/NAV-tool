@@ -335,13 +335,12 @@ calc.pnl <- function(trades.extended, reval) {
 # extract returns from extended trade pnl's, trimming to daterange
 calc.returns <- function(trades.pnl, daterange, ccy.pairs) {
   print("---> inside calc.returns ---")
-#   print(str(trades.pnl))
   idx <- NULL
   for (ccy in ccy.pairs) {
     idx <- c(idx,grep(pattern=ccy,x=trades.pnl$"Ccy pair",fixed=TRUE,ignore.case=FALSE,value=FALSE))
   }
   rtns.df <- trades.pnl[unique(idx), c("Ccy pair","PnL USD","Exit time")]
-  rtns.xts <- xts(rtns.df[idx,"PnL USD"],rtns.df[idx,"Exit time"])
+  rtns.xts <- xts(rtns.df[,"PnL USD"],rtns.df[,"Exit time"])
   colnames(rtns.xts) <- "PnL USD"
   # filter returns outside the range
   idx <- which(as.Date(index(rtns.xts)) < as.Date(daterange)[1] | as.Date(index(rtns.xts)) > as.Date(daterange)[2])
@@ -349,14 +348,15 @@ calc.returns <- function(trades.pnl, daterange, ccy.pairs) {
     rtns.xts <- rtns.xts[-idx]
   }
   print(head(rtns.xts))
+  print("<--- leaving calc.returns ---")
   return(rtns.xts)
 }
 
 # --------------------------------------------------------------------
 #  expenses Calculation
 # --------------------------------------------------------------------
-calc.net.rtns <- function(rtns.monthly, mgt.fee.rate=0.02, perf.fee.rate=0.20, aum=1.e8) {
-  print("---> inside calc.net.rtns ---")
+apply.fees <- function(rtns.monthly, mgt.fee.rate=0.02, perf.fee.rate=0.20, aum=1.e8) {
+  print("---> inside apply.fees ---")
   zero.xts <- xts(rep(0,length(rtns.monthly)),index(rtns.monthly))
   start.eq <- zero.xts
   pnl <- rtns.monthly
@@ -388,7 +388,8 @@ calc.net.rtns <- function(rtns.monthly, mgt.fee.rate=0.02, perf.fee.rate=0.20, a
   # end.eq is now cumulative NAV minus mgt and performance fees
   # we want percentag returns net of fees
   rtns.net <- diff(rbind(xts(1.e8,index(end.eq)[1] - days(30)),end.eq))
-  print(head(rtns.net))
+#   print(head(rtns.net))
+  print("<--- leaving apply.fees ---")
   return(rtns.net[-1])
 }
 
@@ -399,15 +400,14 @@ calc.net.rtns <- function(rtns.monthly, mgt.fee.rate=0.02, perf.fee.rate=0.20, a
 
 calc.open.pos <- function(trades.extended.pnl, daterange) {
   # NOTE: we use the split trades dataframe and assume no trade goes over month end
-  print("---> inside calc.open.pos")
+  print("---> inside calc.open.pos ---")
 #   print(str(trades.extended.pnl))
   idx.range <- which(as.Date(trades.extended.pnl$"Exit time") < as.Date(daterange)[1] | 
                        as.Date(trades.extended.pnl$"Exit time") > as.Date(daterange)[2])
   df.range <- trades.extended.pnl[-idx.range,]
-  # find trades which are open at month end, and trades which close during the month
+  # find trades which are open at month end
   idx.open <- which( grepl("CarryOver",df.range$"Exit name"))
   df <- df.range[idx.open,]
-  # split opens from closes
   open.pos <- data.frame(df$"Ccy pair", df$"TradeId", df$"SplitId", df$"Amount major"*df$Sign, df$"Amount USD"*df$Sign, df$"Exit time")
   colnames(open.pos) <- c("Ccy Pair","Trade ID", "Split ID", "Amount major","Amount USD","Exit time")
   # split by ccypair
@@ -417,6 +417,7 @@ calc.open.pos <- function(trades.extended.pnl, daterange) {
   open.list.xts.m <- lapply(open.list.xts, function(x) apply.monthly(x,colSums))
   # total is a bit meaningless without doing all the cross-rate calculations
   # so we ignore it here
+  print("<--- leaving calc.open.pos ---")
   return(open.list.xts.m)
 }
 
@@ -456,7 +457,7 @@ calc.stats <- function(pnl,period=12) {
                              "Kurtosis",
                              "Omega Ratio"
   )
-  
+  print("<--- leaving calc.stats ---")
   return(statstable)  
 }
 
