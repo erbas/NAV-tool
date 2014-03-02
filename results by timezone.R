@@ -5,9 +5,9 @@ source('unreactive.R')
 path1 <- "CRNCY_Trade File_Model/"
 path2 <- "CMDTY_Trade File_Model/"
 path3 <- "Revaluation rates/"
-# path1 <- "E:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model"
-# path2 <- "E:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model/"
-# path3 <- "E:/Cloud Data/Data History/Revaluation rates/"
+path1 <- "E:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model"
+path2 <- "E:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model/"
+path3 <- "E:/Cloud Data/Data History/Revaluation rates/"
 files.to.load <- c(list.files(path1,pattern="*.csv",full.names=TRUE,recursive=TRUE), list.files(path2,pattern="*.csv",full.names=TRUE,recursive=TRUE))
 # # files.to.load <- list.files(path1,pattern="*.csv",full.names=TRUE,recursive=TRUE)
 trade.data <- load.all.trades(files.to.load)
@@ -59,7 +59,7 @@ tz.labels <- c("6am-10am",
                "10pm-2am",
                "2am-6am")
 
-barplot(sapply(pnls.date,length),names.arg=tz.labels,main="Number of Trades in each 4 hour block",cex.names=0.8)
+barplot(sapply(pnls.date,length),names.arg=tz.labels,main="Number of Trades in each 4 hour window",cex.names=0.8)
 
 # plot total returns in each 4 hour block
 layout(t(matrix(1:6,3,2)),respect=FALSE)
@@ -131,11 +131,10 @@ for (x in trades.ccy) {
 
   pnls.ccy <- lapply(pnls.ccy, function(x) {index(x) <- as.Date(index(x)); x})
   # make plot
-#   f.name <- paste0("Performance by Hour/",ccy,".pdf")
-#   f.name <- paste0(ccy,".pdf")
-#   pdf(file=f.name,width=11,height=8,onefile=TRUE,paper="a4r")
-  f.name <- paste0("Performance by Hour/",ccy,".png")
-  png(filename=f.name,width=800,height=570,quality=0.95)
+  f.name <- paste0("Performance by Hour/",ccy,".pdf")
+  pdf(file=f.name,width=11,height=8,onefile=TRUE,paper="a4r")
+#   f.name <- paste0("Performance by Hour/",ccy,".png")
+#   png(filename=f.name,width=800,height=570,quality=0.95)
   layout(t(matrix(1:6,3,2)),respect=FALSE)
   cex.m <- 1
   cex.lg <- 0.7

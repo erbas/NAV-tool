@@ -1,10 +1,10 @@
 # 
 path1 <- "CRNCY_Trade File_Model/Sub Strategy/"
-path2 <- "CMDTY_Trade File_Model/Sub Strategy//Gold"
+path2 <- "CMDTY_Trade File_Model/Sub Strategy/Gold"
 path3 <- "Revaluation rates/"
-# path1 <- "E:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model"
-# path2 <- "E:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model/"
-# path3 <- "E:/Cloud Data/Data History/Revaluation rates/"
+path1 <- "E:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model"
+path2 <- "E:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model/"
+path3 <- "E:/Cloud Data/Data History/Revaluation rates/"
 files.to.load <- c(list.files(path1,pattern="*.csv",full.names=TRUE,recursive=TRUE), list.files(path2,pattern="*.csv",full.names=TRUE,recursive=TRUE))
 
 trade.data <- load.all.trades(files.to.load)
