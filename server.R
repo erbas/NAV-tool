@@ -302,7 +302,7 @@ shinyServer(function(input, output) {
   # NOTE: this is the entry point from the UI, 
   #     : ie first reactive function called from pnl and nav tabs
   get.net.returns <- reactive({
-    print("---> inside get.net.returns ---")
+    print("-->> inside get.net.returns <--")
     rtns <- get.returns()
     reval.rates <- get.reval.cached()
     eom.revals <- get.ends.of.months(reval.rates)
@@ -310,7 +310,7 @@ shinyServer(function(input, output) {
     index(rtns.monthly) <- as.Date(index(rtns.monthly))
     fees <- actual.fees()
     rtns.net <- apply.fees(rtns.monthly, mgt.fee=fees$mgt, perf.fee=fees$perf,aum=actual.aum() )
-    print("<--- leaving get.net.returns ---")    
+    print("<<-- leaving get.net.returns -->")    
     return(rtns.net)    
   })
 
