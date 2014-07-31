@@ -63,7 +63,7 @@ shinyUI(pageWithSidebar(
                 label="Select currency pairs",
                 choices=c("AUDCAD", "AUDJPY", "AUDUSD", "EURAUD", "EURCAD", "EURJPY", "EURUSD",
                           "GBPAUD", "GBPJPY", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY",
-                          "USDSGD", "XAUUSD"),
+                          "USDSGD", "XAUUSD", "XAGUSD"),
                 selected = "XAUUSD"
 #                 selected=c("AUDCAD", "AUDJPY", "AUDUSD", "EURAUD", "EURCAD", "EURJPY", "EURUSD",
 #                            "GBPAUD", "GBPJPY", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY",
