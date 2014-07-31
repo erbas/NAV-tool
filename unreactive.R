@@ -91,7 +91,7 @@ load.reval.files <- function(path,daterange) {
     idx <- which(as.Date(index(f.xts)) < as.Date(daterange)[1])
     f.xts.trimmed <- f.xts[-idx]
     colnames(f.xts.trimmed) <- ccy.pair
-    reval.xts <- merge(f.xts.trimmed,reval.xts,fill=0)
+    reval.xts <- merge(f.xts.trimmed, reval.xts, fill=0)
   }
   # fill in missing values
   reval.xts[reval.xts == 0] <- NA
@@ -341,6 +341,7 @@ calc.returns <- function(trades.pnl, ccy.pairs) {
   rtns.df <- trades.pnl[unique(idx), c("Ccy pair","PnL USD","Exit time")]
   rtns.xts <- xts(rtns.df[,"PnL USD"],rtns.df[,"Exit time"])
   colnames(rtns.xts) <- "PnL USD"
+  print(paste0("Found ",nrow(rtns.df)," trades in ",ccy.pairs))
   print("<--- leaving calc.returns ---")
   return(rtns.xts)
 }
