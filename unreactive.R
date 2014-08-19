@@ -421,6 +421,7 @@ calc.open.pos <- function(trades.extended.pnl, daterange) {
 
 calc.stats <- function(pnl,period=12) {
   print("---> inside calc.stats")
+  # calculate monthly stats
   ABSRTN <- colSums(pnl)*100
   CAR <- Return.annualized(pnl,scale=period,geometric=T)*100
   VOL <- apply(pnl,2,sd)*sqrt(period)*100
@@ -454,6 +455,13 @@ calc.stats <- function(pnl,period=12) {
   print("<--- leaving calc.stats ---")
   return(statstable)  
 }
+
+# calc.winloss(trades.usd, reval.rtes) {
+#   result <- trades.usd$sign*(trades.usd$Exit.price - trades.usd$Entry.price)
+#   pnl <- result*trades.usd$Amount.major/trades.usd$Amount.USD
+#   pnl <- length(result[result > 0])/length(result)
+#   
+# }
 
 # --------------------------------------------------------------------
 #  end of month handling

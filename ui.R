@@ -112,7 +112,8 @@ shinyUI(pageWithSidebar(
     
       tabPanel( title = "Statistics",
 #                 h4(textOutput("instruments")),
-                tableOutput("statistics"),                
+                tableOutput("statistics"),
+#                 tableOutput("ratios"),
                 div(align='center',
                     downloadButton('downloadStats', 'Save Stats'))
       ),
