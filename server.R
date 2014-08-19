@@ -160,16 +160,8 @@ shinyServer(function(input, output) {
 
   # win/loss ratios
   output$ratios <- renderTable({
-    x <- get.trades.extended.cached()
-    pnl <- x[,"PnL USD"]/x[,"Amount USD"]
-    res <- aggregate(pnl, by=list("TradeId"=x[,"TradeId"]), sum)
-    WINLOSS <- length(res[res$x > 0, "x"])/length(res$x)
-    AVWIN <- mean(res[res$x > 0, "x"])
-    AVLOSS <- mean(res[res$x < 0, "x"])
-    df <- data.frame(WINLOSS)
-    row.names(df) <- "Win/Loss Ratio (%)" 
-    names(df) <- ''
-    colnames(df) <- ''
+    trades.pnl <- get.trades.extended.cached()
+    df <- calc.ratios(trades.pnl, input$ccyPairs)
     df
   })
   

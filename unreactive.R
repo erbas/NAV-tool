@@ -346,6 +346,35 @@ calc.returns <- function(trades.pnl, ccy.pairs) {
   return(rtns.xts)
 }
 
+# calcualte win/loss ratios 
+calc.ratios <- function(trades.pnl, ccy.pairs) {
+  print("---> inside calc.ratios ---")
+  idx <- NULL
+  for (ccy in ccy.pairs) {
+    idx <- c(idx,grep(pattern=ccy,x=trades.pnl$"Ccy pair",fixed=TRUE,ignore.case=FALSE,value=FALSE))
+  }
+  rtns.df <- trades.pnl[unique(idx), c("Ccy pair", "TradeId", "PnL USD", "Amount USD")]
+  pnl <- aggregate(rtns.df$"PnL USD"/rtns.df$"Amount USD", by=list(rtns.df$"TradeId"), sum)[,2]
+  names(pnl) <- ''
+#   SUM.AGG = sum(pnl)
+#   SUM.RAW = sum(rtns.df$"PnL USD")
+#   WINLOSS <- length(pnl[pnl > 0])/length(pnl)
+#   ratios <- rbind(SUM.AGG, SUM.RAW, WINLOSS)
+#   row.names(ratios) <- c("SUM.AGG", "SUM.RAW", "WINLOSS")
+  WINLOSS <- length(pnl[pnl > 0])/length(pnl)
+  AV.WIN <- mean(pnl[pnl > 0])
+  AV.LOSS <- mean(pnl[pnl < 0])
+  EXPECT = mean(pnl)
+  ratios <- data.frame(rbind(WINLOSS, AV.WIN, AV.LOSS, EXPECT))*100
+  row.names(ratios) <- c("Win/Loss Ratio (%)", 
+                         "Average Winning Trade (%)",
+                         "Average Losing Trade (%)",
+                         "Expectation (%)")
+  colnames(ratios) <- ''
+  print("<--- leaving calc.ratios ---")
+  return(ratios)
+}
+
 # --------------------------------------------------------------------
 #  expenses Calculation
 # --------------------------------------------------------------------
