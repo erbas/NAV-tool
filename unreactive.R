@@ -425,7 +425,7 @@ calc.stats <- function(pnl,period=12) {
   CAR <- Return.annualized(pnl,scale=period,geometric=T)*100
   VOL <- apply(pnl,2,sd)*sqrt(period)*100
   MAXDRAW <- maxDrawdown(pnl,geometric=T)*100
-  SHARPE <- SharpeRatio.annualized(pnl,Rf=0,scale=period,geometric=T)
+  SHARPE <- SharpeRatio.annualized(pnl,Rf=0.0025/period,scale=period,geometric=T)
   SORTINO <- SortinoRatio(pnl)
   SKEWNESS <- skewness(pnl,method="moment")
   KURTOSIS <- kurtosis(pnl,method="moment")
@@ -490,4 +490,5 @@ my.apply.monthly <- function(rtns, eom.datetimes, FUN=sum) {
   }
   return(monthly.total)
 }
+
 
