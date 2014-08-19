@@ -158,6 +158,23 @@ shinyServer(function(input, output) {
     }
   )
   
+  # display durations chart
+  output$durations <- renderPlot({    
+    plotDurations()
+  })
+  # save durations chart
+  output$downloadDurationsChart <- downloadHandler(
+    filename = function() {
+      paste('TradeDurations '," ",Sys.Date(), '.png', sep='')
+    },
+    content = function(file) {
+      png(file)
+      print(plotDurations())
+      dev.off()
+    },
+    contentType = "image/png"
+  )
+  
   # --------------------------------------
   # plots for tab panels
   # --------------------------------------
@@ -195,6 +212,26 @@ shinyServer(function(input, output) {
     chart.TimeSeries(op.display/1.e6,type="h",date.format="%b-%Y",main=main.txt,ylab="million",xlab="")
   })
 
+  # Durations
+  plotDurations <- reactive({
+    trades.usd <- get.trades.usd.cached()
+#     durations <- trades.usd$"Exit time" - trades.usd$"Entry time"
+    durations <- as.numeric(trades.usd$Bars)*as.numeric(trades.usd$Timeframe)
+    df <- data.frame(trades.usd$"Ccy pair", as.numeric(durations))
+    colnames(df) <- c("ccyPair", "durations")
+    df.display <- df[df$ccyPair %in% input$ccyPairs,]
+    x <- df.display$durations/60/24
+    n <- ifelse(length(x) > 1000,25,15)
+    n <- ifelse( length(x) < n, NULL, n)
+    print(n)
+    print(summary(df.display))
+    print(summary(x))
+    if (length(x) > 0) {
+      hist(x, n, xlab='days', ylab='Number of Trades',main="Trade Durations")
+    } else {
+      NULL
+    }   
+  })
 
   # find all trade files 
   find.all.trade.files <- reactive({

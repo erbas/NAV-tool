@@ -115,8 +115,14 @@ shinyUI(pageWithSidebar(
                 tableOutput("statistics"),                
                 div(align='center',
                     downloadButton('downloadStats', 'Save Stats'))
-      )
-    
+      ),
+
+      tabPanel( title = "Trade Durations",
+          plotOutput("durations"),                
+          div(align='center',
+              downloadButton('downloadDurationsChart', 'Save Chart'))
+)
+
       
     )  
   )
