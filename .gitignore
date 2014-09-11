@@ -13,5 +13,7 @@ Revaluation rates/**
 *.numbers/**
 tmp
 Performance record.numbers/**
-
 *.pptx
+Performance by Hour/**
+*.pdf
+
