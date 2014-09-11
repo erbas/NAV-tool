@@ -2,16 +2,18 @@
 source('unreactive.R')
 
 # load data - currencies only
-path1 <- "CRNCY_Trade File_Model/"
-path2 <- "CMDTY_Trade File_Model/"
-path3 <- "Revaluation rates/"
-# path1 <- "E:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model"
-# path2 <- "E:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model/"
-# path3 <- "E:/Cloud Data/Data History/Revaluation rates/"
+# path1 <- "CRNCY_Trade File_Model/"
+# path2 <- "CMDTY_Trade File_Model/"
+# path3 <- "Revaluation rates/"
+path1 <- "E:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model/Sub Strategy/"
+path2 <- "E:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model/Gold/"
+# path1 <- "E:/Cloud Data/KT"
+# path2 <- ""
+path3 <- "E:/Cloud Data/Data History/Revaluation rates/"
 files.to.load <- c(list.files(path1,pattern="*.csv",full.names=TRUE,recursive=TRUE), list.files(path2,pattern="*.csv",full.names=TRUE,recursive=TRUE))
 # # files.to.load <- list.files(path1,pattern="*.csv",full.names=TRUE,recursive=TRUE)
 trade.data <- load.all.trades(files.to.load)
-reval <- load.reval.files(path3,c("2010-01-01","2013-12-31"))
+reval <- load.reval.files(path3,c("2010-01-01","2014-06-30"))
 trades.usd <- make.trades.USD(trade.data, reval)
 trades.extended <- split.trades.at.month.ends(trades.usd, reval)
 extended.trades.pnl <- calc.pnl(trades.extended, reval)
@@ -34,7 +36,13 @@ for (i in 1:nrow(pnl.entry)) {
 # analysis
 # pnl by ccy by four hour time block
 
-pnl.entry.xts <- xts(pnl.entry$PnL.USD,as.POSIXct(as.numeric(pnl.entry$Entry.time),origin='1970-01-01 00:00.00 UTC',tz="Europe/London"))
+# other portfolios
+g7.ext <- c("EURUSD", "AUDUSD", "GBPUSD", "USDJPY", "USDCAD", "USDCHF", "USDSGD", "EURJPY", "EURAUD", "EURCAD", "XAUUSD")
+g7 <- c("EURUSD", "AUDUSD", "GBPUSD", "USDJPY", "USDCAD", "USDCHF", "USDSGD", "EURJPY", "EURAUD", "EURCAD")
+
+pnl.entry.g7 <- pnl.entry[pnl.entry$Ccy.pair %in% g7,]
+
+pnl.entry.xts <- xts(pnl.entry.g7$PnL.USD,as.POSIXct(as.numeric(pnl.entry.g7$Entry.time),origin='1970-01-01 00:00.00 UTC',tz="Europe/London"))
 colnames(pnl.entry.xts) <- "PnL"
 pnl.1 <- pnl.entry.xts['T06/T09:59']
 pnl.2 <- pnl.entry.xts['T10/T13:59']
@@ -59,14 +67,14 @@ tz.labels <- c("6am-10am",
                "10pm-2am",
                "2am-6am")
 
-barplot(sapply(pnls.date,length),names.arg=tz.labels,main="Number of Trades in each 4 hour block",cex.names=0.8)
+barplot(sapply(pnls.date,length),names.arg=tz.labels,main="Number of Trades in each 4 hour window",cex.names=0.8)
 
 # plot total returns in each 4 hour block
 layout(t(matrix(1:6,3,2)),respect=FALSE)
 cex.m <- 1
 cex.lg <- 0.8
 for (i in 1:6) {
-  txt <- paste("Total Returns from",tz.labels[i])
+  txt <- paste("Total Returns ",tz.labels[i])
   if (length(pnls.date[[i]]) > 1) 
     plot.zoo(cumsum(pnls.date[[i]])/AUM*100,main=txt,ylab="% AUM",xlab="")
 }
@@ -131,11 +139,10 @@ for (x in trades.ccy) {
 
   pnls.ccy <- lapply(pnls.ccy, function(x) {index(x) <- as.Date(index(x)); x})
   # make plot
-#   f.name <- paste0("Performance by Hour/",ccy,".pdf")
-#   f.name <- paste0(ccy,".pdf")
-#   pdf(file=f.name,width=11,height=8,onefile=TRUE,paper="a4r")
-  f.name <- paste0("Performance by Hour/",ccy,".png")
-  png(filename=f.name,width=800,height=570,quality=0.95)
+  f.name <- paste0("Performance by Hour/",ccy,".pdf")
+  pdf(file=f.name,width=11,height=8,onefile=TRUE,paper="a4r")
+#   f.name <- paste0("Performance by Hour/",ccy,".png")
+#   png(filename=f.name,width=800,height=570,quality=0.95)
   layout(t(matrix(1:6,3,2)),respect=FALSE)
   cex.m <- 1
   cex.lg <- 0.7

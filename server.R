@@ -157,6 +157,30 @@ shinyServer(function(input, output) {
       write.csv(ptf.stats, file)
     }
   )
+
+  # win/loss ratios
+  output$ratios <- renderTable({
+    trades.pnl <- get.trades.extended.cached()
+    df <- calc.ratios(trades.pnl, input$ccyPairs)
+    df
+  })
+  
+  # display durations chart
+  output$durations <- renderPlot({    
+    plotDurations()
+  })
+  # save durations chart
+  output$downloadDurationsChart <- downloadHandler(
+    filename = function() {
+      paste('TradeDurations '," ",Sys.Date(), '.png', sep='')
+    },
+    content = function(file) {
+      png(file)
+      print(plotDurations())
+      dev.off()
+    },
+    contentType = "image/png"
+  )
   
   # --------------------------------------
   # plots for tab panels
@@ -195,6 +219,26 @@ shinyServer(function(input, output) {
     chart.TimeSeries(op.display/1.e6,type="h",date.format="%b-%Y",main=main.txt,ylab="million",xlab="")
   })
 
+  # Durations
+  plotDurations <- reactive({
+    trades.usd <- get.trades.usd.cached()
+#     durations <- trades.usd$"Exit time" - trades.usd$"Entry time"
+    durations <- as.numeric(trades.usd$Bars)*as.numeric(trades.usd$Timeframe)
+    df <- data.frame(trades.usd$"Ccy pair", as.numeric(durations))
+    colnames(df) <- c("ccyPair", "durations")
+    df.display <- df[df$ccyPair %in% input$ccyPairs,]
+    x <- df.display$durations/60/24
+    n <- ifelse(length(x) > 1000,25,15)
+    n <- ifelse( length(x) < n, NULL, n)
+    print(n)
+    print(summary(df.display))
+    print(summary(x))
+    if (length(x) > 0) {
+      hist(x, n, xlab='days', ylab='Number of Trades',main="Trade Durations")
+    } else {
+      NULL
+    }   
+  })
 
   # find all trade files 
   find.all.trade.files <- reactive({
@@ -302,7 +346,7 @@ shinyServer(function(input, output) {
   # NOTE: this is the entry point from the UI, 
   #     : ie first reactive function called from pnl and nav tabs
   get.net.returns <- reactive({
-    print("---> inside get.net.returns ---")
+    print("-->> inside get.net.returns <--")
     rtns <- get.returns()
     reval.rates <- get.reval.cached()
     eom.revals <- get.ends.of.months(reval.rates)
@@ -310,7 +354,7 @@ shinyServer(function(input, output) {
     index(rtns.monthly) <- as.Date(index(rtns.monthly))
     fees <- actual.fees()
     rtns.net <- apply.fees(rtns.monthly, mgt.fee=fees$mgt, perf.fee=fees$perf,aum=actual.aum() )
-    print("<--- leaving get.net.returns ---")    
+    print("<<-- leaving get.net.returns -->")    
     return(rtns.net)    
   })
 

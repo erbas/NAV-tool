@@ -91,7 +91,7 @@ load.reval.files <- function(path,daterange) {
     idx <- which(as.Date(index(f.xts)) < as.Date(daterange)[1])
     f.xts.trimmed <- f.xts[-idx]
     colnames(f.xts.trimmed) <- ccy.pair
-    reval.xts <- merge(f.xts.trimmed,reval.xts,fill=0)
+    reval.xts <- merge(f.xts.trimmed, reval.xts, fill=0)
   }
   # fill in missing values
   reval.xts[reval.xts == 0] <- NA
@@ -341,8 +341,38 @@ calc.returns <- function(trades.pnl, ccy.pairs) {
   rtns.df <- trades.pnl[unique(idx), c("Ccy pair","PnL USD","Exit time")]
   rtns.xts <- xts(rtns.df[,"PnL USD"],rtns.df[,"Exit time"])
   colnames(rtns.xts) <- "PnL USD"
+  print(paste0("Found ",nrow(rtns.df)," trades in ",ccy.pairs))
   print("<--- leaving calc.returns ---")
   return(rtns.xts)
+}
+
+# calcualte win/loss ratios 
+calc.ratios <- function(trades.pnl, ccy.pairs) {
+  print("---> inside calc.ratios ---")
+  idx <- NULL
+  for (ccy in ccy.pairs) {
+    idx <- c(idx,grep(pattern=ccy,x=trades.pnl$"Ccy pair",fixed=TRUE,ignore.case=FALSE,value=FALSE))
+  }
+  rtns.df <- trades.pnl[unique(idx), c("Ccy pair", "TradeId", "PnL USD", "Amount USD")]
+  pnl <- aggregate(rtns.df$"PnL USD"/rtns.df$"Amount USD", by=list(rtns.df$"TradeId"), sum)[,2]
+  names(pnl) <- ''
+#   SUM.AGG = sum(pnl)
+#   SUM.RAW = sum(rtns.df$"PnL USD")
+#   WINLOSS <- length(pnl[pnl > 0])/length(pnl)
+#   ratios <- rbind(SUM.AGG, SUM.RAW, WINLOSS)
+#   row.names(ratios) <- c("SUM.AGG", "SUM.RAW", "WINLOSS")
+  WINLOSS <- length(pnl[pnl > 0])/length(pnl)
+  AV.WIN <- mean(pnl[pnl > 0])
+  AV.LOSS <- mean(pnl[pnl < 0])
+  EXPECT = mean(pnl)
+  ratios <- data.frame(rbind(WINLOSS, AV.WIN, AV.LOSS, EXPECT))*100
+  row.names(ratios) <- c("Win/Loss Ratio (%)", 
+                         "Average Winning Trade (%)",
+                         "Average Losing Trade (%)",
+                         "Expectation (%)")
+  colnames(ratios) <- ''
+  print("<--- leaving calc.ratios ---")
+  return(ratios)
 }
 
 # --------------------------------------------------------------------
@@ -420,11 +450,12 @@ calc.open.pos <- function(trades.extended.pnl, daterange) {
 
 calc.stats <- function(pnl,period=12) {
   print("---> inside calc.stats")
+  # calculate monthly stats
   ABSRTN <- colSums(pnl)*100
   CAR <- Return.annualized(pnl,scale=period,geometric=T)*100
   VOL <- apply(pnl,2,sd)*sqrt(period)*100
   MAXDRAW <- maxDrawdown(pnl,geometric=T)*100
-  SHARPE <- SharpeRatio.annualized(pnl,Rf=0,scale=period,geometric=T)
+  SHARPE <- SharpeRatio.annualized(pnl,Rf=0.0025/period,scale=period,geometric=T)
   SORTINO <- SortinoRatio(pnl)
   SKEWNESS <- skewness(pnl,method="moment")
   KURTOSIS <- kurtosis(pnl,method="moment")
@@ -453,6 +484,13 @@ calc.stats <- function(pnl,period=12) {
   print("<--- leaving calc.stats ---")
   return(statstable)  
 }
+
+# calc.winloss(trades.usd, reval.rtes) {
+#   result <- trades.usd$sign*(trades.usd$Exit.price - trades.usd$Entry.price)
+#   pnl <- result*trades.usd$Amount.major/trades.usd$Amount.USD
+#   pnl <- length(result[result > 0])/length(result)
+#   
+# }
 
 # --------------------------------------------------------------------
 #  end of month handling
@@ -489,4 +527,5 @@ my.apply.monthly <- function(rtns, eom.datetimes, FUN=sum) {
   }
   return(monthly.total)
 }
+
 

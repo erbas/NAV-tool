@@ -63,7 +63,7 @@ shinyUI(pageWithSidebar(
                 label="Select currency pairs",
                 choices=c("AUDCAD", "AUDJPY", "AUDUSD", "EURAUD", "EURCAD", "EURJPY", "EURUSD",
                           "GBPAUD", "GBPJPY", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY",
-                          "USDSGD", "XAUUSD"),
+                          "USDSGD", "XAUUSD", "XAGUSD"),
                 selected = "XAUUSD"
 #                 selected=c("AUDCAD", "AUDJPY", "AUDUSD", "EURAUD", "EURCAD", "EURJPY", "EURUSD",
 #                            "GBPAUD", "GBPJPY", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY",
@@ -112,11 +112,18 @@ shinyUI(pageWithSidebar(
     
       tabPanel( title = "Statistics",
 #                 h4(textOutput("instruments")),
-                tableOutput("statistics"),                
+                tableOutput("statistics"),
+                tableOutput("ratios"),
                 div(align='center',
                     downloadButton('downloadStats', 'Save Stats'))
-      )
-    
+      ),
+
+      tabPanel( title = "Trade Durations",
+          plotOutput("durations"),                
+          div(align='center',
+              downloadButton('downloadDurationsChart', 'Save Chart'))
+)
+
       
     )  
   )
