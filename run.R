@@ -1,4 +1,4 @@
 
 require(shiny)
-folder_address = 'C:/Users/apether/Desktop/ui.R'
+folder_address = paste0(Sys.getenv("Home"),"/NAV-tool/")
 runApp(folder_address, launch.browser=TRUE)

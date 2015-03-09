@@ -17,7 +17,7 @@ shinyUI(pageWithSidebar(
       value = if (grepl("apple",R.version[1],fixed=TRUE)) {
         "/Users/keiran/Dropbox/workspace/APTIC PnL Tool/CRNCY_Trade File_Model/Sub Strategy/"
       } else {
-        "E:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model/Sub Strategy/"
+        "C:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model/Sub Strategy/"
       }
     ),
     textInput(
@@ -26,7 +26,7 @@ shinyUI(pageWithSidebar(
       value = if (grepl("apple",R.version[1],fixed=TRUE)) {
         "/Users/keiran/Dropbox/workspace/APTIC PnL Tool/CMDTY_Trade File_Model/Sub Strategy/Gold"
       } else {
-        "E:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model/Gold/"
+        "C:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model/Gold/"
       }
     ),    
 
