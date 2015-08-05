@@ -17,3 +17,5 @@ Performance record.numbers/**
 Performance by Hour/*.pdf
 *.pdf
 
+*.Rout
+*.lnk
