@@ -79,6 +79,7 @@ read.saved.extended.pnl <- function() {
 # find and load all reval files
 # --------------------------------------------------------------------
 load.reval.files <- function(path,daterange) {
+  print("-- inside load.reval.files ---")
   f.list <- list.files(path,pattern="*_EOD.csv",full.names=TRUE,recursive=FALSE)
   reval.xts <- NULL
   for (f in f.list) {
@@ -86,8 +87,7 @@ load.reval.files <- function(path,daterange) {
     print(ccy.pair)
     f.csv <- read.csv(f,stringsAsFactors=FALSE,header=TRUE,skip=1)
     dt <- dmy(f.csv[,1],tz="Europe/London")
-    f.xts <- xts(f.csv[,2],dt)
-#     idx <- which(as.Date(index(f.xts)) < as.Date(daterange)[1] | as.Date(index(f.xts)) > as.Date(daterange)[2])
+    f.xts <- xts(as.numeric(f.csv[,2]),dt)
     idx <- which(as.Date(index(f.xts)) < as.Date(daterange)[1])
     f.xts.trimmed <- f.xts[-idx]
     colnames(f.xts.trimmed) <- ccy.pair
@@ -95,13 +95,16 @@ load.reval.files <- function(path,daterange) {
   }
   # fill in missing values
   reval.xts[reval.xts == 0] <- NA
-  reval.xts <- na.approx(reval.xts)      
+  reval.xts <- na.approx(reval.xts) 
   # turn dates into 5pm London date-times
   dt <- as.POSIXlt(index(reval.xts))
   dt$hour <- 17
   index(reval.xts) <- as.POSIXct(dt)
   idx <- which(duplicated(index(reval.xts)))
-  reval.xts <- na.locf(reval.xts[-idx,])
+  #   print(idx)
+  if (length(idx) > 0) {
+    reval.xts <- na.locf(reval.xts[-idx,])
+  }
   write.zoo(reval.xts,file="cache/reval_rates.csv",sep=",")
   return(reval.xts)
 }
@@ -111,6 +114,7 @@ load.reval.files <- function(path,daterange) {
 # --------------------------------------------------------------------
 load.all.trades <- function(files.list) {
   print("---> load.all.trades")
+  print(files.list)
   # read files
   files.summary <- NULL
   files.contents <- NULL
@@ -118,7 +122,7 @@ load.all.trades <- function(files.list) {
   for (f.name in files.list) {
     f.csv <- read.csv(file=f.name,stringsAsFactors=FALSE)
     n.lines <- n.lines + nrow(f.csv)
-    cat(n.lines,f.name,"\n")
+    #     cat(n.lines,f.name,"\n")
     # get details about trades from name of folder containing this file
     p <- strsplit(f.name,"/",fixed=TRUE)[[1]]
     a <- strsplit(last(p)," ")[[1]]
@@ -138,6 +142,11 @@ load.all.trades <- function(files.list) {
     df$Instrument <- sapply(df$Instrument,function(x) gsub(pattern='$','',x,fixed=TRUE))
     # add in the other fields
     df <- cbind(df,time.frame,trade.size,exit.type,ratio)
+    # debug
+    if (df$Instrument[1] == "Backtest") {
+      print(f.name)
+      print(f.csv)
+    }
     # convert datetimes, catching the case of missing seconds
     dt.entry <- tryCatch(dmy_hms(df$Entry.time,tz="Europe/London",truncated=1),
                          warning = function(w) {
@@ -146,11 +155,11 @@ load.all.trades <- function(files.list) {
                            return(dt)
                          })
     dt.exit <- tryCatch(dmy_hms(df$Exit.time,tz="Europe/London",truncated=1),
-                     warning = function(w) {
-                       print(w)
-                       dt <- dmy_hm(df$Entry.time,tz="Europe/London")
-                       return(dt)
-                     })
+                        warning = function(w) {
+                          print(w)
+                          dt <- dmy_hm(df$Entry.time,tz="Europe/London")
+                          return(dt)
+                        })
     df$Entry.time <- dt.entry
     df$Exit.time <- dt.exit
     files.contents <- rbind(files.contents,df)
@@ -168,7 +177,6 @@ load.all.trades <- function(files.list) {
 # --------------------------------------------------------------------
 make.trades.USD <- function(df, reval) {
   print("---> inside make.trades.USD")
-#   print(str(df))
   Amount.USD <- rep(0,nrow(df))
   # loop over trades converting trade amounts to USD
   for (i in 1:nrow(df)) {
@@ -177,7 +185,7 @@ make.trades.USD <- function(df, reval) {
     if (ccy1 == "USD") {
       to.USD <- 1
     } else if (ccy2 == "USD") {
-      to.USD <- df[i,"Exit price"]
+      to.USD <- as.numeric(df[i,"Exit price"])
     } else {
       ccypair1 <- paste0(ccy2,"USD")
       ccypair2 <- paste0("USD",ccy2)
@@ -192,7 +200,7 @@ make.trades.USD <- function(df, reval) {
       } else if (ccypair2 %in% colnames(reval)) {
         to.USD <- 1/reval[dt,ccypair2]
       } else {
-        stop(paste("Currency pair",ccy1,ccy2,"not found in reval file",sep=" "))
+        print(paste("Currency pair",ccy1,ccy2,"not found in reval file",sep=" "))
       } 
     }
     Amount.USD[i] <- coredata(to.USD) * df[i,"Amount major"]
@@ -205,6 +213,7 @@ make.trades.USD <- function(df, reval) {
   colnames(extras) <- c("Amount USD","Sign")
   df.usd <- cbind(df,extras)
   write.csv(df.usd,file="cache/trades_usd.csv")
+  print("<--- exit make.trades.USD")
   return(df.usd)  
 }
 
@@ -234,7 +243,8 @@ split.trades.at.month.ends <- function(df, reval) {
   synth <- NULL
   for (i in 1:nrow(trades.split)) {
     ccy.pair <- trades.split[i,"Ccy pair"]
-    cat(i,trades.split$TradeId[i],trades.split[i,"Ccy pair"],"\n")
+    #     cat(i,trades.split$TradeId[i],trades.split[i,"Ccy pair"],"\n")
+    print(trades.split[i,])
     # how many extra trades do we need to create?  find list of month ends
     idx.split <- which(eom.reval.dt > trades.split[i,"Entry time"] & eom.reval.dt <= trades.split[i,"Exit time"])
     n.split <- length(idx.split)
@@ -287,7 +297,7 @@ split.trades.at.month.ends <- function(df, reval) {
 
 calc.pnl <- function(trades.extended, reval) {
   print("---> inside calc.pnl")
-#   str(trades.extended)
+  #   str(trades.extended)
   df <- trades.extended
   pnl.raw <- (df$"Exit price" - df$"Entry price") * df$"Amount major" * df$Sign
   df <- cbind(df,pnl.raw)
@@ -356,11 +366,11 @@ calc.ratios <- function(trades.pnl, ccy.pairs) {
   rtns.df <- trades.pnl[unique(idx), c("Ccy pair", "TradeId", "PnL USD", "Amount USD")]
   pnl <- aggregate(rtns.df$"PnL USD"/rtns.df$"Amount USD", by=list(rtns.df$"TradeId"), sum)[,2]
   names(pnl) <- ''
-#   SUM.AGG = sum(pnl)
-#   SUM.RAW = sum(rtns.df$"PnL USD")
-#   WINLOSS <- length(pnl[pnl > 0])/length(pnl)
-#   ratios <- rbind(SUM.AGG, SUM.RAW, WINLOSS)
-#   row.names(ratios) <- c("SUM.AGG", "SUM.RAW", "WINLOSS")
+  #   SUM.AGG = sum(pnl)
+  #   SUM.RAW = sum(rtns.df$"PnL USD")
+  #   WINLOSS <- length(pnl[pnl > 0])/length(pnl)
+  #   ratios <- rbind(SUM.AGG, SUM.RAW, WINLOSS)
+  #   row.names(ratios) <- c("SUM.AGG", "SUM.RAW", "WINLOSS")
   WINLOSS <- length(pnl[pnl > 0])/length(pnl)
   AV.WIN <- mean(pnl[pnl > 0])
   AV.LOSS <- mean(pnl[pnl < 0])
@@ -411,7 +421,7 @@ apply.fees <- function(rtns.monthly, mgt.fee.rate=0.02, perf.fee.rate=0.20, aum=
   # end.eq is now cumulative NAV minus mgt and performance fees
   # we want percentag returns net of fees
   rtns.net <- diff(rbind(xts(1.e8,index(end.eq)[1] - days(30)),end.eq))
-#   print(head(rtns.net))
+  #   print(head(rtns.net))
   print("<--- leaving apply.fees ---")
   return(rtns.net[-1])
 }
@@ -424,7 +434,7 @@ apply.fees <- function(rtns.monthly, mgt.fee.rate=0.02, perf.fee.rate=0.20, aum=
 calc.open.pos <- function(trades.extended.pnl, daterange) {
   # NOTE: we use the split trades dataframe and assume no trade goes over month end
   print("---> inside calc.open.pos ---")
-#   print(str(trades.extended.pnl))
+  #   print(str(trades.extended.pnl))
   idx.range <- which(as.Date(trades.extended.pnl$"Exit time") < as.Date(daterange)[1] | 
                        as.Date(trades.extended.pnl$"Exit time") > as.Date(daterange)[2])
   df.range <- trades.extended.pnl[-idx.range,]
@@ -460,7 +470,7 @@ calc.stats <- function(pnl,period=12) {
   SKEWNESS <- skewness(pnl,method="moment")
   KURTOSIS <- kurtosis(pnl,method="moment")
   OMEGA <- Omega(pnl,L=0)
-#   KELLY <- KellyRatio(pnl,Rf=0)
+  #   KELLY <- KellyRatio(pnl,Rf=0)
   DRAWDNS <- table.Drawdowns(pnl[,1])
   n <- min(10,max(as.integer(row.names(DRAWDNS))))
   DRAWDNS <- table.Drawdowns(pnl[,1],top=n)
