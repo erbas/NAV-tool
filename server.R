@@ -6,6 +6,7 @@ library(lubridate)
 library(PerformanceAnalytics)
 
 source("unreactive.R")
+options(warn=2)
 
 # define the shiny server 
 shinyServer(function(input, output) {
