@@ -17,7 +17,7 @@ shinyUI(pageWithSidebar(
       value = if (grepl("apple",R.version[1],fixed=TRUE)) {
         "/Users/keiran/Dropbox/workspace/APTIC PnL Tool/CRNCY_Trade File_Model/Sub Strategy/"
       } else {
-        "C:/Cloud Data/Published Returns/Global Currency Program/CRNCY_31 Dec 2013/CRNCY_Trade File_Model/Sub Strategy/"
+        "C:/Users/apether/Desktop/MODEL_TRADES/CRNCY_Trade File_Model/Sub Strategy/"
       }
     ),
     textInput(
@@ -26,7 +26,7 @@ shinyUI(pageWithSidebar(
       value = if (grepl("apple",R.version[1],fixed=TRUE)) {
         "/Users/keiran/Dropbox/workspace/APTIC PnL Tool/CMDTY_Trade File_Model/Sub Strategy/Gold"
       } else {
-        "C:/Cloud Data/Published Returns/Global Commodity Program/Dec 31_2013/CMDTY_Trade File_Model/Gold/"
+        "C:/Users/apether/Desktop/MODEL_TRADES/CMDTY_Trade File_Model/Gold/"
       }
     ),    
 
@@ -38,14 +38,14 @@ shinyUI(pageWithSidebar(
       value = if (grepl("apple",R.version[1],fixed=TRUE)) {
         "/Users/keiran/Dropbox/workspace/APTIC PnL Tool/Revaluation rates"
       } else {
-        "E:/Cloud Data/Data History/Revaluation rates"
+        "C:/Users/apether/Desktop/Data History/Revaluation rates"
       }
     ),
     checkboxInput("reload","Force reload of trade files?",value=FALSE),
     
     tags$hr(),
     
-    dateRangeInput("daterange","Date range:",start="2010-01-01",end="2013-12-31"),
+    dateRangeInput("daterange","Date range:",start="2010-01-01",end="2015-07-31"),
     br(),
     numericInput("mgtFee","Management Fee (%):",min=0,max=5,step=0.1,value=2),
     br(),
