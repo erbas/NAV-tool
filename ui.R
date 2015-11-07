@@ -17,7 +17,7 @@ shinyUI(pageWithSidebar(
       value = if (grepl("apple",R.version[1],fixed=TRUE)) {
         "/Users/keiran/Dropbox/workspace/APTIC PnL Tool/CRNCY_Trade File_Model/Sub Strategy/"
       } else {
-        "C:/Users/apether/Desktop/MODEL_TRADES/CRNCY_Trade File_Model/Sub Strategy/"
+        "C:/Users/Andrw Pether/Documents/MODEL_TRADES/CRNCY_Trade File_Model/Sub Strategy/"
       }
     ),
     textInput(

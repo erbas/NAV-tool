@@ -2,7 +2,7 @@ library(quantmod)
 library(lubridate)
 Sys.setenv(TZ="Europe/London")
 options(lubridate.verbose = TRUE)
-options(warn=2)
+# options(warn=2)
 
 # --------------------------------------------------------------------
 #  load previously saved data
