@@ -245,7 +245,7 @@ split.trades.at.month.ends <- function(df, reval) {
   for (i in 1:nrow(trades.split)) {
     ccy.pair <- trades.split[i,"Ccy pair"]
     #     cat(i,trades.split$TradeId[i],trades.split[i,"Ccy pair"],"\n")
-    print(trades.split[i,])
+    #print(trades.split[i,])
     # how many extra trades do we need to create?  find list of month ends
     idx.split <- which(eom.reval.dt > trades.split[i,"Entry time"] & eom.reval.dt <= trades.split[i,"Exit time"])
     n.split <- length(idx.split)
@@ -306,7 +306,7 @@ calc.pnl <- function(trades.extended, reval) {
   pnl.USD <- rep(0,nrow(df))
   # loop over trades converting PnL amounts to USD
   for (i in 1:nrow(df)) {
-    if (i %% 10 == 0) cat(i,df[i,"TradeId"],df[i,"SplitId"],df[i,"Ccy pair"],"\n")
+    # if (i %% 10 == 0) cat(i,df[i,"TradeId"],df[i,"SplitId"],df[i,"Ccy pair"],"\n")
     ccy1 <- substr(df[i,"Ccy pair"],1,3)
     ccy2 <- substr(df[i,"Ccy pair"],4,6)
     if (ccy1 == "USD") {
