@@ -86,13 +86,18 @@ load.reval.files <- function(path,daterange) {
   for (f in f.list) {
     ccy.pair <- strsplit(last(strsplit(f,'/')[[1]]),"_")[[1]][1]
     print(ccy.pair)
-    f.csv <- read.csv(f,stringsAsFactors=FALSE,header=TRUE,skip=1)
-    dt <- dmy(f.csv[,1],tz="Europe/London")
-    f.xts <- xts(as.numeric(f.csv[,2]),dt)
-    idx <- which(as.Date(index(f.xts)) < as.Date(daterange)[1])
-    f.xts.trimmed <- f.xts[-idx]
-    colnames(f.xts.trimmed) <- ccy.pair
-    reval.xts <- merge(f.xts.trimmed, reval.xts, fill=0)
+    tryCatch({
+      f.csv <- read.csv(f,stringsAsFactors=FALSE,header=TRUE,skip=1)
+      dt <- dmy(f.csv[,1],tz="Europe/London")
+      f.xts <- xts(as.numeric(f.csv[,2]),dt)
+      idx <- which(as.Date(index(f.xts)) < as.Date(daterange)[1])
+      f.xts.trimmed <- f.xts[-idx]
+      colnames(f.xts.trimmed) <- ccy.pair
+      reval.xts <- merge(f.xts.trimmed, reval.xts, fill=0)
+    }, error = function(e) {
+      e$message <- paste0("There is a problem with the ", ccy.pair, " reval file!")
+      stop(e)
+    })
   }
   # fill in missing values
   reval.xts[reval.xts == 0] <- NA
@@ -121,6 +126,7 @@ load.all.trades <- function(files.list) {
   files.contents <- NULL
   n.lines <- 0 
   for (f.name in files.list) {
+    tryCatch({
     f.csv <- read.csv(file=f.name,stringsAsFactors=FALSE)
     n.lines <- n.lines + nrow(f.csv)
     #     cat(n.lines,f.name,"\n")
@@ -164,6 +170,10 @@ load.all.trades <- function(files.list) {
     df$Entry.time <- dt.entry
     df$Exit.time <- dt.exit
     files.contents <- rbind(files.contents,df)
+    }, error = function(e) {
+      e$message <- paste0("There was a problem loading the file ", f.csv)
+      stop(e)
+    })
   }
   # relabale columns
   names(files.contents) <- c('Ccy pair','Direction','Amount major','Entry price','Exit price','Entry time','Exit time','Entry name','Exit name','Bars','Timeframe','RATS','Exit type','Ratio')
